@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RepoFlow Pro - Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+        
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        #sidebar {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @media (max-width: 768px) {
+            #sidebar.closed { transform: translateX(-100%); }
+            #sidebar.open { transform: translateX(0); }
+        }
+
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .animate-modal {
+            animation: modalShow 0.2s ease-out forwards;
+        }
+
+        @keyframes modalShow {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .tab-active {
+            color: #2563eb;
+            background-color: #eff6ff;
+        }
+
+        .input-error {
+            border-color: #ef4444 !important;
+            background-color: #fef2f2 !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-900 overflow-hidden">
+
+    <!-- Layar Pemuatan -->
+    <div id="loadingOverlay" class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white">
+        <div class="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+        <p class="text-slate-400 text-sm font-medium animate-pulse">Menghubungkan ke GitHub...</p>
+    </div>
+
+    <!-- Overlay Autentikasi -->
+    <div id="authOverlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4">
+        <div class="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md animate-modal">
+            <div class="text-center mb-8">
+                <div class="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-200">
+                    <i data-lucide="github" class="w-8 h-8 text-white"></i>
+                </div>
+                <h2 class="text-2xl font-bold">GitHub Access</h2>
+                <p class="text-slate-500 text-sm mt-2 px-4">Masukkan <b>Personal Access Token (PAT)</b> Anda untuk mulai mengelola kode.</p>
+            </div>
+            
+            <div class="space-y-4">
+                <input type="password" id="ghToken" placeholder="ghp_xxxxxxxxxxxx" class="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono text-sm">
+                
+                <button onclick="login()" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95">
+                    Hubungkan Akun
+                </button>
+                
+                <div class="pt-4 border-t border-slate-100 text-center">
+                    <p class="text-[10px] text-slate-400 mb-2">Belum punya token?</p>
+                    <a href="https://github.com/settings/tokens/new?scopes=repo,delete_repo" target="_blank" class="text-xs text-blue-600 font-bold hover:underline">
+                        Buat Token Baru di GitHub
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- UI Aplikasi Utama -->
+    <div id="app" class="hidden flex flex-col h-screen overflow-hidden">
+        
+        <!-- Navbar -->
+        <nav class="glass-nav border-b border-slate-200 px-4 md:px-8 py-3.5 flex items-center justify-between sticky top-0 z-40">
+            <div class="flex items-center space-x-3">
+                <button onclick="toggleSidebar()" class="md:hidden p-2 hover:bg-slate-100 rounded-lg text-slate-600">
+                    <i data-lucide="menu" class="w-6 h-6"></i>
+                </button>
+                <div class="flex items-center space-x-2">
+                    <div class="bg-blue-600 p-1.5 rounded-lg hidden sm:block">
+                        <i data-lucide="zap" class="w-4 h-4 text-white"></i>
+                    </div>
+                    <h1 class="font-extrabold text-lg tracking-tight text-slate-800">RepoFlow</h1>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2 md:space-x-4">
+                <div class="flex bg-slate-100 p-1 rounded-xl mr-2 hidden sm:flex">
+                    <button id="navExplorer" onclick="switchTab('explorer')" class="tab-active px-4 py-1.5 text-xs font-bold rounded-lg transition-all">Explorer</button>
+                    <button id="navSettings" onclick="switchTab('settings')" class="px-4 py-1.5 text-xs font-bold text-slate-500 rounded-lg transition-all">Settings</button>
+                </div>
+
+                <div class="flex items-center space-x-3 pl-4 border-l border-slate-200">
+                    <div id="userAvatar" class="w-8 h-8 rounded-full bg-slate-200 overflow-hidden ring-2 ring-white"></div>
+                    <span id="userName" class="text-xs font-bold text-slate-700 hidden sm:block"></span>
+                    <button onclick="switchTab('settings')" id="mobileSettingsBtn" class="sm:hidden p-2 text-slate-400 hover:text-blue-600 transition-colors">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <div class="flex flex-1 overflow-hidden relative">
+            <!-- Sidebar -->
+            <aside id="sidebar" class="closed fixed md:static inset-y-0 left-0 z-50 w-72 md:w-80 bg-white border-r border-slate-200 flex flex-col">
+                <div class="p-5 flex flex-col h-full">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-[10px] font-black uppercase text-slate-400 tracking-widest">Repositori</h2>
+                        <button onclick="openCreateRepoModal()" class="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="relative mb-4">
+                        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="repoSearch" oninput="filterRepos()" placeholder="Cari repo..." class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+                    <div id="repoList" class="flex-1 overflow-y-auto custom-scrollbar space-y-1"></div>
+                </div>
+            </aside>
+
+            <div id="sidebarOverlay" onclick="toggleSidebar()" class="hidden fixed inset-0 bg-slate-900/40 z-40 backdrop-blur-[2px]"></div>
+
+            <main class="flex-1 flex flex-col bg-slate-50 overflow-hidden">
+                
+                <!-- Tab Explorer -->
+                <div id="tabExplorer" class="flex flex-col h-full">
+                    <div class="px-4 md:px-8 py-4 border-b border-slate-200 bg-white/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 overflow-hidden">
+                        <div id="breadcrumb" class="flex items-center space-x-2 text-xs md:text-sm font-medium text-slate-500 overflow-x-auto whitespace-nowrap custom-scrollbar pb-1 sm:pb-0">
+                            <span>Pilih repositori untuk memulai</span>
+                        </div>
+                        
+                        <div id="repoActions" class="hidden flex items-center justify-end space-x-2">
+                            <div id="selectionTools" class="hidden flex items-center bg-slate-200/50 p-1 rounded-xl mr-1">
+                                <span id="selectionCount" class="text-[10px] font-bold px-3 text-slate-600">0</span>
+                                <button onclick="bulkDelete()" class="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                            <button onclick="deleteCurrentRepo()" class="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Hapus Repositori">
+                                <i data-lucide="trash-2" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="mainView" class="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar relative">
+                        <div id="welcomeScreen" class="h-full flex flex-col items-center justify-center text-center">
+                            <div class="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mb-6">
+                                <i data-lucide="layout" class="w-8 h-8 text-blue-600"></i>
+                            </div>
+                            <h3 class="text-xl font-bold text-slate-800">Siap Mengelola Kode?</h3>
+                            <button onclick="toggleSidebar()" class="md:hidden mt-6 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm">Buka Menu Repo</button>
+                        </div>
+
+                        <div id="fileBrowser" class="hidden">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                                <h3 class="text-lg font-bold text-slate-800 flex items-center">Explorer <span id="fileCount" class="ml-3 px-2 py-0.5 bg-slate-200 text-slate-500 text-[10px] rounded-full">0</span></h3>
+                                <div class="flex items-center space-x-2">
+                                    <button onclick="toggleSelectionMode()" id="multiSelectToggle" class="px-4 py-2 border rounded-xl text-xs font-bold">Pilih Massal</button>
+                                    <button onclick="openCreateFileModal()" class="bg-blue-600 text-white px-5 py-2 rounded-xl text-xs font-bold shadow-lg shadow-blue-100">+ File Baru</button>
+                                </div>
+                            </div>
+                            <div id="fileList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-10"></div>
+                        </div>
+
+                        <div id="fileEditor" class="hidden flex flex-col h-full bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-2xl animate-modal">
+                            <div class="bg-slate-50 px-5 py-3 flex justify-between items-center border-b border-slate-200">
+                                <span id="editingFileName" class="font-bold text-xs text-slate-600 truncate max-w-[200px]">file.txt</span>
+                                <div class="flex space-x-2">
+                                    <button onclick="closeEditor()" class="px-3 py-1.5 text-xs font-bold text-slate-500">Batal</button>
+                                    <button onclick="saveFile()" class="px-4 py-1.5 text-xs font-bold bg-blue-600 text-white rounded-lg">Simpan</button>
+                                </div>
+                            </div>
+                            <textarea id="editorTextArea" class="flex-1 p-5 font-mono text-sm focus:outline-none resize-none leading-relaxed custom-scrollbar" spellcheck="false"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab Settings -->
+                <div id="tabSettings" class="hidden flex-1 overflow-y-auto p-4 md:p-12 animate-modal">
+                    <div class="max-w-2xl mx-auto space-y-8 pb-20">
+                        <!-- Mobile Back Button -->
+                        <button onclick="switchTab('explorer')" class="sm:hidden flex items-center space-x-2 text-blue-600 font-bold mb-4">
+                            <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                            <span>Kembali ke Explorer</span>
+                        </button>
+
+                        <div>
+                            <h2 class="text-2xl font-bold text-slate-800 tracking-tight">Pengaturan & Token</h2>
+                            <p class="text-slate-500 text-sm">Kelola akses dan daftar token Anda di GitHub.</p>
+                        </div>
+
+                        <!-- Card: Manajemen Token Luar -->
+                        <div class="bg-blue-600 rounded-[2rem] p-8 text-white shadow-xl shadow-blue-200 relative overflow-hidden group">
+                            <div class="absolute -right-10 -bottom-10 opacity-10 group-hover:scale-110 transition-transform duration-700">
+                                <i data-lucide="shield-check" class="w-48 h-48"></i>
+                            </div>
+                            <div class="relative z-10">
+                                <h3 class="text-xl font-bold mb-2 flex items-center">
+                                    <i data-lucide="shield-check" class="w-6 h-6 mr-3"></i>
+                                    Dashboard Token GitHub
+                                </h3>
+                                <p class="text-blue-100 text-sm mb-6 leading-relaxed">
+                                    Klik tombol di bawah untuk melihat atau menghapus token langsung melalui situs web resmi GitHub.
+                                </p>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <a href="https://github.com/settings/tokens" target="_blank" class="flex items-center justify-center space-x-2 bg-white text-blue-600 px-6 py-4 rounded-2xl font-bold text-sm hover:bg-blue-50 transition-all">
+                                        <i data-lucide="external-link" class="w-4 h-4"></i>
+                                        <span>Token Classic</span>
+                                    </a>
+                                    <a href="https://github.com/settings/personal-access-tokens" target="_blank" class="flex items-center justify-center space-x-2 bg-blue-700 text-white px-6 py-4 rounded-2xl font-bold text-sm hover:bg-blue-800 transition-all">
+                                        <i data-lucide="external-link" class="w-4 h-4"></i>
+                                        <span>Fine-grained Token</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Info Profil -->
+                        <div class="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center gap-6">
+                            <div id="settingsAvatar" class="w-24 h-24 rounded-full bg-slate-100 ring-4 ring-slate-50 overflow-hidden flex items-center justify-center">
+                                <i data-lucide="user" class="w-10 h-10 text-slate-300"></i>
+                            </div>
+                            <div class="text-center md:text-left">
+                                <h3 id="settingsName" class="text-xl font-bold text-slate-800">...</h3>
+                                <p id="settingsBio" class="text-slate-400 text-sm mt-1">GitHub Developer</p>
+                            </div>
+                        </div>
+
+                        <!-- Card: Update & Lihat Token Lokal -->
+                        <div class="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-sm space-y-6">
+                            <div>
+                                <h3 class="font-bold text-slate-800 flex items-center">
+                                    <i data-lucide="key" class="w-5 h-5 mr-3 text-blue-600"></i>
+                                    Token Aktif Saat Ini
+                                </h3>
+                                <p class="text-slate-400 text-xs mt-1">Anda dapat melihat, menyalin, atau memperbarui token yang sedang digunakan aplikasi.</p>
+                            </div>
+                            <div class="space-y-4">
+                                <div class="relative flex flex-col sm:flex-row gap-2">
+                                    <div class="relative flex-1">
+                                        <input type="password" id="settingsTokenInput" class="w-full px-4 py-4 bg-slate-50 border border-slate-100 rounded-xl outline-none font-mono text-sm pr-24 focus:ring-2 focus:ring-blue-500">
+                                        <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-1">
+                                            <button onclick="toggleSettingsTokenVisibility()" class="p-2 text-slate-400 hover:text-blue-600 transition-colors" title="Lihat/Sembunyikan">
+                                                <i data-lucide="eye" id="settingsTokenEye" class="w-5 h-5"></i>
+                                            </button>
+                                            <button onclick="copyCurrentToken()" class="p-2 text-slate-400 hover:text-blue-600 transition-colors" title="Salin Token">
+                                                <i data-lucide="copy" class="w-5 h-5"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <button onclick="updateSettingsToken()" class="bg-blue-600 text-white px-8 py-4 rounded-xl font-bold text-sm hover:bg-blue-700 active:scale-95 transition-all whitespace-nowrap shadow-lg shadow-blue-100">Simpan Baru</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pt-4">
+                            <button onclick="logout()" class="w-full py-4 border border-red-100 text-red-500 rounded-2xl text-sm font-bold hover:bg-red-50 transition-all flex items-center justify-center space-x-2">
+                                <i data-lucide="log-out" class="w-4 h-4"></i>
+                                <span>Hapus Token & Keluar</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modals & Containers (Confirm, Create, Notification) -->
+    <div id="confirmOverlay" class="hidden fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-[2rem] p-8 w-full max-w-sm shadow-2xl animate-modal text-center">
+            <div id="confirmIconBox" class="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 bg-red-100 text-red-600">
+                <i data-lucide="alert-triangle" class="w-8 h-8"></i>
+            </div>
+            <h3 id="confirmTitle" class="text-xl font-bold mb-3 text-slate-800">Konfirmasi</h3>
+            <p id="confirmMessage" class="text-slate-500 text-sm mb-8 leading-relaxed"></p>
+            <div class="flex space-x-3">
+                <button id="confirmCancelBtn" class="flex-1 py-4 text-sm font-bold text-slate-500">Batal</button>
+                <button id="confirmConfirmBtn" class="flex-1 py-4 bg-red-600 text-white rounded-xl font-bold shadow-lg shadow-red-100">Lanjut</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalOverlay" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+        <div id="createRepoModal" class="hidden bg-white rounded-[2rem] p-6 w-full max-w-md shadow-2xl animate-modal">
+            <h3 class="text-xl font-bold mb-5">Repositori Baru</h3>
+            <div class="space-y-4">
+                <input type="text" id="newRepoName" placeholder="Nama Repo" class="w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none">
+                <textarea id="newRepoDesc" placeholder="Deskripsi (Opsional)" class="w-full px-4 py-3 bg-slate-50 border rounded-xl h-24 outline-none"></textarea>
+                <div class="flex items-center space-x-3 p-3 bg-slate-50 rounded-xl">
+                    <input type="checkbox" id="newRepoPrivate" class="w-4 h-4 text-blue-600">
+                    <label for="newRepoPrivate" class="text-sm font-semibold">Private</label>
+                </div>
+                <div class="flex space-x-3 pt-4">
+                    <button onclick="closeModal()" class="flex-1 py-3 font-bold text-slate-500">Batal</button>
+                    <button onclick="submitCreateRepo()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Buat</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="createFileModal" class="hidden bg-white rounded-[2rem] p-6 w-full max-w-sm shadow-2xl text-center animate-modal">
+            <h3 class="text-xl font-bold mb-4">File Baru</h3>
+            <input type="text" id="newFileName" placeholder="contoh: index.html" class="w-full px-4 py-4 bg-slate-50 border rounded-xl text-center font-bold outline-none">
+            <div class="flex space-x-3 mt-6">
+                <button onclick="closeModal()" class="flex-1 py-3 font-bold text-slate-500">Batal</button>
+                <button onclick="submitCreateFile()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-100">Lanjut</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="notificationContainer" class="fixed bottom-6 right-6 left-6 md:left-auto z-[100] space-y-3"></div>
+
+    <script>
+        let GITHUB_TOKEN = localStorage.getItem('gh_manager_token') || '';
+        let currentUser = null;
+        let repositories = [];
+        let currentRepo = null;
+        let currentPath = '';
+        let currentFileData = null;
+        let selectionMode = false;
+        let selectedItems = new Set();
+        let currentTab = 'explorer';
+
+        function initIcons() { lucide.createIcons(); }
+
+        function toggleSidebar() {
+            const s = document.getElementById('sidebar');
+            const o = document.getElementById('sidebarOverlay');
+            if (s.classList.contains('closed')) {
+                s.classList.replace('closed', 'open');
+                o.classList.remove('hidden');
+            } else {
+                s.classList.replace('open', 'closed');
+                o.classList.add('hidden');
+            }
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            const explorer = document.getElementById('tabExplorer');
+            const settings = document.getElementById('tabSettings');
+            const navExplorer = document.getElementById('navExplorer');
+            const navSettings = document.getElementById('navSettings');
+            const mobileSettingsBtn = document.getElementById('mobileSettingsBtn');
+
+            if (tab === 'explorer') {
+                if(explorer) explorer.classList.remove('hidden');
+                if(settings) settings.classList.add('hidden');
+                navExplorer?.classList.add('tab-active');
+                navSettings?.classList.remove('tab-active');
+                mobileSettingsBtn?.classList.remove('text-blue-600');
+                mobileSettingsBtn?.classList.add('text-slate-400');
+            } else {
+                if(explorer) explorer.classList.add('hidden');
+                if(settings) settings.classList.remove('hidden');
+                navSettings?.classList.add('tab-active');
+                navExplorer?.classList.remove('tab-active');
+                mobileSettingsBtn?.classList.add('text-blue-600');
+                mobileSettingsBtn?.classList.remove('text-slate-400');
+                updateSettingsUI();
+            }
+            if (window.innerWidth < 768) {
+                const sidebar = document.getElementById('sidebar');
+                if (sidebar && sidebar.classList.contains('open')) toggleSidebar();
+            }
+        }
+
+        function showCustomConfirm(title, message, options = {}) {
+            return new Promise((resolve) => {
+                const overlay = document.getElementById('confirmOverlay');
+                const titleEl = document.getElementById('confirmTitle');
+                const msgEl = document.getElementById('confirmMessage');
+                const confirmBtn = document.getElementById('confirmConfirmBtn');
+                const cancelBtn = document.getElementById('confirmCancelBtn');
+                if(titleEl) titleEl.innerText = title;
+                if(msgEl) msgEl.innerText = message;
+                if(confirmBtn) confirmBtn.innerText = options.confirmText || 'Lanjut';
+                if(overlay) overlay.classList.remove('hidden');
+                const cleanup = (val) => { overlay.classList.add('hidden'); resolve(val); };
+                confirmBtn.onclick = () => cleanup(true);
+                cancelBtn.onclick = () => cleanup(false);
+            });
+        }
+
+        async function apiCall(endpoint, method = 'GET', body = null, tokenOverride = null) {
+            const url = `https://api.github.com/${endpoint}`;
+            const token = tokenOverride || GITHUB_TOKEN;
+            try {
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+                    body: body ? JSON.stringify(body) : null
+                });
+                if (res.status === 204) return true;
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Error');
+                return data;
+            } catch (err) { throw err; }
+        }
+
+        async function login() {
+            const input = document.getElementById('ghToken');
+            const token = input.value.trim() || GITHUB_TOKEN;
+            if (!token) { showAuth(); return; }
+            try {
+                const userData = await apiCall('user', 'GET', null, token);
+                if (userData?.login) {
+                    GITHUB_TOKEN = token;
+                    localStorage.setItem('gh_manager_token', token);
+                    currentUser = userData;
+                    document.getElementById('authOverlay').classList.add('hidden');
+                    document.getElementById('app').classList.remove('hidden');
+                    document.getElementById('loadingOverlay').classList.add('hidden');
+                    const nameEl = document.getElementById('userName');
+                    if(nameEl) nameEl.innerText = userData.login;
+                    const avatarEl = document.getElementById('userAvatar');
+                    if(avatarEl) avatarEl.innerHTML = `<img src="${userData.avatar_url}" class="w-full h-full object-cover">`;
+                    notify(`Berhasil masuk sebagai ${userData.login}`, "success");
+                    fetchRepos();
+                }
+            } catch (err) {
+                localStorage.removeItem('gh_manager_token');
+                showAuth();
+                notify("Gagal: " + err.message, "error");
+            }
+        }
+
+        function showAuth() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+            document.getElementById('authOverlay').classList.remove('hidden');
+            document.getElementById('app').classList.add('hidden');
+        }
+
+        async function logout() {
+            const confirmed = await showCustomConfirm("Keluar?", "Aplikasi akan menghapus token Anda secara lokal.", { isDanger: true });
+            if (confirmed) { localStorage.removeItem('gh_manager_token'); location.reload(); }
+        }
+
+        async function fetchRepos() {
+            const list = document.getElementById('repoList');
+            if(!list) return;
+            list.innerHTML = `<div class="p-10 text-center text-xs opacity-50 animate-pulse font-bold">MEMUAT REPO...</div>`;
+            try {
+                repositories = await apiCall('user/repos?sort=updated&per_page=100');
+                renderRepoList();
+            } catch (e) { notify(e.message, "error"); }
+        }
+
+        function renderRepoList(query = '') {
+            const list = document.getElementById('repoList');
+            if(!list) return;
+            const filtered = repositories.filter(r => r.name.toLowerCase().includes(query.toLowerCase()));
+            list.innerHTML = filtered.map(r => `
+                <button onclick="selectRepo('${r.owner.login}', '${r.name}')" 
+                        class="w-full text-left p-4 rounded-2xl mb-1 flex items-start space-x-3 transition-all ${currentRepo?.name === r.name ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'hover:bg-slate-100 text-slate-600'}">
+                    <i data-lucide="${r.private ? 'lock' : 'globe'}" class="w-4 h-4 mt-0.5 opacity-60"></i>
+                    <div class="overflow-hidden">
+                        <div class="font-bold text-sm truncate">${r.name}</div>
+                        <div class="text-[10px] opacity-70 truncate">${r.description || 'Tanpa deskripsi'}</div>
+                    </div>
+                </button>`).join('') || `<p class="text-center p-4 text-xs opacity-50 font-bold">KOSONG</p>`;
+            initIcons();
+        }
+
+        function filterRepos() { renderRepoList(document.getElementById('repoSearch').value); }
+
+        async function selectRepo(owner, name) {
+            currentRepo = { owner, name };
+            currentPath = '';
+            selectionMode = false;
+            selectedItems.clear();
+            if (window.innerWidth < 768) toggleSidebar();
+            switchTab('explorer');
+            const welcome = document.getElementById('welcomeScreen');
+            const fileBrowser = document.getElementById('fileBrowser');
+            const repoActions = document.getElementById('repoActions');
+            const fileEditor = document.getElementById('fileEditor');
+            if(welcome) welcome.classList.add('hidden');
+            if(fileBrowser) fileBrowser.classList.remove('hidden');
+            if(repoActions) repoActions.classList.remove('hidden');
+            if(fileEditor) fileEditor.classList.add('hidden');
+            renderRepoList();
+            fetchContents();
+        }
+
+        async function fetchContents(path = '') {
+            currentPath = path;
+            const list = document.getElementById('fileList');
+            if(!list) return;
+            list.innerHTML = `<div class="col-span-full py-20 text-center opacity-30 font-bold animate-pulse">MEMUAT ISI...</div>`;
+            try {
+                const data = await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${path}`);
+                renderFileList(Array.isArray(data) ? data : [data]);
+                updateBreadcrumb();
+            } catch (e) { notify(e.message, "error"); }
+        }
+
+        function renderFileList(items) {
+            const list = document.getElementById('fileList');
+            if(!list) return;
+            const fileCountEl = document.getElementById('fileCount');
+            if(fileCountEl) fileCountEl.innerText = items.length;
+            let html = '';
+            if (currentPath) {
+                html += `<div onclick="fetchContents('${currentPath.split('/').slice(0,-1).join('/')}')" class="p-4 bg-white border rounded-3xl flex items-center space-x-3 cursor-pointer hover:border-blue-400 transition-all group"><i data-lucide="arrow-left" class="w-5 h-5 opacity-30 group-hover:text-blue-600 transition-colors"></i><span class="text-sm font-bold opacity-50">Kembali</span></div>`;
+            }
+            items.forEach(item => {
+                const isDir = item.type === 'dir';
+                const isSelected = Array.from(selectedItems).some(i => JSON.parse(i).path === item.path);
+                html += `<div class="group relative p-4 bg-white border ${isSelected ? 'border-blue-500 bg-blue-50/20' : 'border-slate-100'} rounded-3xl flex flex-col justify-between min-h-[120px] transition-all hover:shadow-lg"><div class="absolute top-3 right-3"><input type="checkbox" onchange="toggleItemSelection('${item.path}', '${item.sha}', this.checked)" ${isSelected ? 'checked' : ''} class="w-5 h-5 rounded-lg border-slate-200 text-blue-600 ${selectionMode ? 'block' : 'hidden group-hover:block'}"></div><div onclick="${isDir ? `fetchContents('${item.path}')` : `openEditor('${item.path}', '${item.name}', '${item.sha}')`}" class="flex-1 cursor-pointer"><div class="w-10 h-10 rounded-xl mb-3 flex items-center justify-center ${isDir ? 'bg-yellow-50 text-yellow-500' : 'bg-blue-50 text-blue-500'}"><i data-lucide="${isDir ? 'folder' : 'file'}" class="w-5 h-5"></i></div><p class="text-sm font-bold text-slate-700 pr-4 truncate">${item.name}</p></div><div class="mt-3 flex justify-end"><button onclick="deleteSingleFile('${item.path}', '${item.sha}', '${item.name}')" class="p-1 text-slate-300 hover:text-red-500"><i data-lucide="trash" class="w-4 h-4"></i></button></div></div>`;
+            });
+            list.innerHTML = html;
+            initIcons();
+        }
+
+        function toggleItemSelection(p, s, c) {
+            const data = JSON.stringify({path:p, sha:s});
+            if (c) selectedItems.add(data);
+            else { for (let item of selectedItems) { if (JSON.parse(item).path === p) { selectedItems.delete(item); break; } } }
+            const tools = document.getElementById('selectionTools');
+            const count = document.getElementById('selectionCount');
+            if(tools) tools.classList.toggle('hidden', selectedItems.size === 0);
+            if(count) count.innerText = selectedItems.size;
+        }
+
+        function toggleSelectionMode() {
+            selectionMode = !selectionMode;
+            const btn = document.getElementById('multiSelectToggle');
+            if(btn) btn.className = selectionMode ? 'px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold' : 'px-4 py-2 border rounded-xl text-xs font-bold';
+            if (!selectionMode) { selectedItems.clear(); const tools = document.getElementById('selectionTools'); if(tools) tools.classList.add('hidden'); }
+            fetchContents(currentPath);
+        }
+
+        async function openEditor(path, name, sha) {
+            const browser = document.getElementById('fileBrowser');
+            const editor = document.getElementById('fileEditor');
+            const fileNameEl = document.getElementById('editingFileName');
+            const area = document.getElementById('editorTextArea');
+            if(browser) browser.classList.add('hidden');
+            if(editor) editor.classList.remove('hidden');
+            if(fileNameEl) fileNameEl.innerText = name;
+            if(area) area.value = "Mengambil konten...";
+            try {
+                const data = await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${path}`);
+                const content = data.encoding === 'base64' ? decodeURIComponent(atob(data.content.replace(/\s/g, '')).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')) : data.content;
+                currentFileData = { sha, path, name };
+                if(area) area.value = content;
+            } catch (e) { notify(e.message, "error"); closeEditor(); }
+        }
+
+        function closeEditor() { 
+            const editor = document.getElementById('fileEditor');
+            const browser = document.getElementById('fileBrowser');
+            if(editor) editor.classList.add('hidden'); 
+            if(browser) browser.classList.remove('hidden'); 
+        }
+
+        async function saveFile() {
+            const area = document.getElementById('editorTextArea');
+            if(!area) return;
+            const content = btoa(encodeURIComponent(area.value).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1)));
+            try {
+                await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${currentFileData.path}`, 'PUT', { message: `Update via RepoFlow: ${currentFileData.name}`, content, sha: currentFileData.sha });
+                notify("Tersimpan!", "success");
+                closeEditor();
+                fetchContents(currentPath);
+            } catch (e) { notify(e.message, "error"); }
+        }
+
+        function updateBreadcrumb() {
+            const b = document.getElementById('breadcrumb');
+            if(!b) return;
+            let parts = currentPath.split('/').filter(p => p);
+            let html = `<button onclick="selectRepo('${currentRepo.owner}','${currentRepo.name}')" class="hover:text-blue-600 font-bold flex items-center"><i data-lucide="home" class="w-4 h-4 mr-2"></i> ${currentRepo.name}</button>`;
+            let tempPath = '';
+            parts.forEach(p => { tempPath += (tempPath ? '/' : '') + p; html += `<i data-lucide="chevron-right" class="w-3 h-3 mx-1 opacity-20"></i><button onclick="fetchContents('${tempPath}')" class="hover:text-blue-600">${p}</button>`; });
+            b.innerHTML = html;
+            initIcons();
+        }
+
+        // --- Settings Management ---
+        function updateSettingsUI() {
+            if (!currentUser) return;
+            const avatar = document.getElementById('settingsAvatar');
+            const name = document.getElementById('settingsName');
+            const bio = document.getElementById('settingsBio');
+            const input = document.getElementById('settingsTokenInput');
+            if(avatar) avatar.innerHTML = `<img src="${currentUser.avatar_url}" class="w-full h-full object-cover">`;
+            if(name) name.innerText = currentUser.name || currentUser.login;
+            if(bio) bio.innerText = currentUser.bio || 'GitHub Developer';
+            if(input) input.value = GITHUB_TOKEN;
+        }
+
+        function toggleSettingsTokenVisibility() {
+            const input = document.getElementById('settingsTokenInput');
+            const eye = document.getElementById('settingsTokenEye');
+            if (!input || !eye) return;
+            if (input.type === 'password') {
+                input.type = 'text';
+                eye.setAttribute('data-lucide', 'eye-off');
+            } else {
+                input.type = 'password';
+                eye.setAttribute('data-lucide', 'eye');
+            }
+            initIcons();
+        }
+
+        function copyCurrentToken() {
+            const input = document.getElementById('settingsTokenInput');
+            if(!input) return;
+            const type = input.type;
+            input.type = 'text'; 
+            input.select();
+            document.execCommand('copy');
+            input.type = type; 
+            notify("Token disalin!", "success");
+        }
+
+        async function updateSettingsToken() {
+            const input = document.getElementById('settingsTokenInput');
+            const newToken = input?.value.trim();
+            if (!newToken) return notify("Token kosong", "error");
+            try {
+                const userData = await apiCall('user', 'GET', null, newToken);
+                if (userData?.login) {
+                    GITHUB_TOKEN = newToken;
+                    localStorage.setItem('gh_manager_token', newToken);
+                    currentUser = userData;
+                    notify("Token berhasil diperbarui!", "success");
+                    updateSettingsUI();
+                    fetchRepos();
+                }
+            } catch (e) { notify("Gagal: " + e.message, "error"); }
+        }
+
+        function openCreateRepoModal() { 
+            const overlay = document.getElementById('modalOverlay');
+            const repoModal = document.getElementById('createRepoModal');
+            if(overlay) overlay.classList.remove('hidden'); 
+            if(repoModal) repoModal.classList.remove('hidden'); 
+        }
+        function openCreateFileModal() { 
+            const overlay = document.getElementById('modalOverlay');
+            const fileModal = document.getElementById('createFileModal');
+            if(overlay) overlay.classList.remove('hidden'); 
+            if(fileModal) fileModal.classList.remove('hidden'); 
+        }
+        function closeModal() { 
+            const overlay = document.getElementById('modalOverlay');
+            const repoModal = document.getElementById('createRepoModal');
+            const fileModal = document.getElementById('createFileModal');
+            if(overlay) overlay.classList.add('hidden'); 
+            if(repoModal) repoModal.classList.add('hidden'); 
+            if(fileModal) fileModal.classList.add('hidden'); 
+        }
+
+        async function submitCreateRepo() {
+            const nameEl = document.getElementById('newRepoName');
+            const name = nameEl?.value;
+            if (!name) return;
+            try {
+                await apiCall('user/repos', 'POST', { name, description: document.getElementById('newRepoDesc')?.value, private: document.getElementById('newRepoPrivate')?.checked, auto_init: true });
+                notify("Repo dibuat", "success"); closeModal(); fetchRepos();
+            } catch (e) { notify(e.message, "error"); }
+        }
+
+        async function submitCreateFile() {
+            const nameEl = document.getElementById('newFileName');
+            const name = nameEl?.value;
+            if (!name) return;
+            const fullPath = currentPath ? `${currentPath}/${name}` : name;
+            currentFileData = { sha: null, path: fullPath, name };
+            closeModal();
+            const browser = document.getElementById('fileBrowser');
+            const editor = document.getElementById('fileEditor');
+            const editName = document.getElementById('editingFileName');
+            const area = document.getElementById('editorTextArea');
+            if(browser) browser.classList.add('hidden');
+            if(editor) editor.classList.remove('hidden');
+            if(editName) editName.innerText = name;
+            if(area) area.value = "";
+        }
+
+        async function deleteSingleFile(path, sha, name) {
+            const yes = await showCustomConfirm("Hapus File?", `Hapus "${name}"?`, { isDanger: true });
+            if (yes) { try { await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${path}`, 'DELETE', { message: 'Delete via RepoFlow', sha }); notify("Dihapus", "success"); fetchContents(currentPath); } catch (e) { notify(e.message, "error"); } }
+        }
+
+        async function deleteCurrentRepo() {
+            const yes = await showCustomConfirm("Hapus Repo?", `Hapus permanen ${currentRepo.name}?`, { isDanger: true });
+            if (yes) {
+                try {
+                    await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}`, 'DELETE');
+                    notify("Terhapus", "success"); currentRepo = null;
+                    const welcome = document.getElementById('welcomeScreen');
+                    const browser = document.getElementById('fileBrowser');
+                    const actions = document.getElementById('repoActions');
+                    const bread = document.getElementById('breadcrumb');
+                    if(welcome) welcome.classList.remove('hidden');
+                    if(browser) browser.classList.add('hidden');
+                    if(actions) actions.classList.add('hidden');
+                    if(bread) bread.innerHTML = "<span>Pilih repo di menu</span>";
+                    fetchRepos();
+                } catch (e) { notify(e.message, "error"); }
+            }
+        }
+
+        async function bulkDelete() {
+            const yes = await showCustomConfirm("Hapus Massal?", `Hapus ${selectedItems.size} item?`, { isDanger: true });
+            if (yes) {
+                notify("Menghapus...", "info");
+                for (let item of selectedItems) {
+                    const {path, sha} = JSON.parse(item);
+                    try { await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${path}`, 'DELETE', { message: 'Bulk', sha }); } catch (e) {}
+                }
+                notify("Selesai", "success"); selectedItems.clear(); toggleSelectionMode();
+            }
+        }
+
+        function notify(msg, type = "info") {
+            const container = document.getElementById('notificationContainer');
+            if(!container) return;
+            const bg = type === 'success' ? 'bg-green-600' : (type === 'error' ? 'bg-red-600' : 'bg-blue-600');
+            const id = Date.now();
+            container.insertAdjacentHTML('beforeend', `<div id="notif-${id}" class="${bg} text-white p-4 rounded-2xl shadow-xl flex items-center space-x-3 animate-bounce shadow-lg"><span class="text-xs font-bold uppercase tracking-wider">${msg}</span></div>`);
+            setTimeout(() => document.getElementById(`notif-${id}`)?.remove(), 4000);
+        }
+
+        window.onload = login;
+    </script>
+</body>
+</html>
