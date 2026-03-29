@@ -1,6 +1,6 @@
-# RepoFlow Pro
+# RepoFlow
 
-**RepoFlow Pro** is a lightweight, responsive, and powerful web-based GitHub repository management application. Built with HTML5, Tailwind CSS, and Vanilla JavaScript, this tool allows you to manage your entire GitHub ecosystem directly from your browser or via a mobile application without the need for a local Git installation.
+**RepoFlow** is a lightweight, responsive, and powerful web-based GitHub repository management application. Built with HTML5, Tailwind CSS, and Vanilla JavaScript, this tool allows you to manage your entire GitHub ecosystem directly from your browser or via a mobile application without the need for a local Git installation.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![GitHub top language](https://img.shields.io/github/languages/top/username/repoflow)
@@ -39,7 +39,7 @@
 
 ## Installation and Setup
 
-RepoFlow Pro can be deployed as a web application or installed as an Android application.
+RepoFlow can be deployed as a web application or installed as an Android application.
 
 ### Android Installation
 1.  **Download**: Navigate to the [Releases](https://github.com/Elvandito/repoflow/releases/latest) section of this repository.
@@ -59,7 +59,7 @@ RepoFlow Pro can be deployed as a web application or installed as an Android app
 
 ## Authentication Setup
 
-To use RepoFlow Pro, you must provide a GitHub Personal Access Token (PAT).
+To use RepoFlow, you must provide a GitHub Personal Access Token (PAT).
 
 1.  **Generate Token**: 
     *   Navigate to [GitHub Settings > Developer Settings](https://github.com/settings/tokens).
