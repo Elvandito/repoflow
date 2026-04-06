@@ -6,7 +6,11 @@
     <preference name="android-minSdkVersion" value="24" />
     <preference name="android-targetSdkVersion" value="34" />
     <preference name="android-compileSdkVersion" value="34" />
+
     <platform name="android">
         <icon src="res/icon.png" />
+
+        <icon background="res/android/icon-background.png" 
+              foreground="res/android/icon-foreground.png" />
     </platform>
 </widget>
