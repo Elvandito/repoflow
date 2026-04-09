@@ -1,623 +1,1149 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en-us">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RepoFlow Pro - Management</title>
+    <title>RepoFlow | Ultimate GitHub Manager</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap');
         
+        :root {
+            --bg-primary: #f8fafc;
+            --sidebar-bg: #ffffff;
+            --accent: #2563eb;
+        }
+
+        .dark {
+            --bg-primary: #0f172a;
+            --sidebar-bg: #1e293b;
+            --accent: #3b82f6;
+        }
+
         body { 
-            font-family: 'Plus Jakarta Sans', sans-serif; 
+            font-family: 'Inter', sans-serif; 
+            background-color: var(--bg-primary);
+            transition: background-color 0.3s ease;
             -webkit-tap-highlight-color: transparent;
         }
 
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        code, pre { font-family: 'Fira Code', monospace; }
 
-        #sidebar {
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        @media (max-width: 768px) {
-            #sidebar.closed { transform: translateX(-100%); }
-            #sidebar.open { transform: translateX(0); }
-        }
-
-        .glass-nav {
-            background: rgba(255, 255, 255, 0.8);
+        .glass {
+            background: rgba(255, 255, 255, 0.7);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
         }
 
-        .animate-modal {
-            animation: modalShow 0.2s ease-out forwards;
+        .dark .glass {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.05);
         }
 
-        @keyframes modalShow {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
-        }
+        #sidebar { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        @media (max-width: 768px) { #sidebar.closed { transform: translateX(-100%); } }
 
-        .tab-active {
-            color: #2563eb;
-            background-color: #eff6ff;
-        }
+        .animate-in { animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
 
-        .input-error {
-            border-color: #ef4444 !important;
-            background-color: #fef2f2 !important;
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
+
+        .file-card:hover .action-btn { opacity: 1; }
+        .action-btn { opacity: 0; transition: opacity 0.2s; }
+        @media (max-width: 768px) { .action-btn { opacity: 1; } }
+
+        /* Custom Segmented Control Tabs */
+        .tab-active { 
+            background-color: #ffffff; 
+            color: #0f172a; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06); 
         }
+        .dark .tab-active { 
+            background-color: #f8fafc; 
+            color: #0f172a; 
+        }
+        .tab-inactive { color: #64748b; }
+        .dark .tab-inactive { color: #94a3b8; }
+        .tab-inactive:hover { color: #0f172a; }
+        .dark .tab-inactive:hover { color: #f8fafc; }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen text-slate-900 overflow-hidden">
+<body class="min-h-screen text-slate-900 dark:text-slate-100 overflow-hidden">
 
-    <!-- Layar Pemuatan -->
-    <div id="loadingOverlay" class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white">
-        <div class="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-        <p class="text-slate-400 text-sm font-medium animate-pulse">Menghubungkan ke GitHub...</p>
+    <!-- Loading Screen -->
+    <div id="loadingOverlay" class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-white dark:bg-slate-900">
+        <div class="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+        <p class="text-slate-500 dark:text-slate-400 font-medium animate-pulse">Initializing Application...</p>
     </div>
 
-    <!-- Overlay Autentikasi -->
-    <div id="authOverlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4">
-        <div class="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md animate-modal">
+    <!-- Authentication Portal -->
+    <div id="authOverlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xl p-4">
+        <div class="bg-white dark:bg-slate-800 p-8 md:p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-white/20 animate-in">
             <div class="text-center mb-8">
-                <div class="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-200">
-                    <i data-lucide="github" class="w-8 h-8 text-white"></i>
+                <!-- SVG Lightning Logo -->
+                <div class="bg-blue-600 w-20 h-20 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-blue-500/30">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="w-10 h-10 text-white">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                    </svg>
                 </div>
-                <h2 class="text-2xl font-bold">GitHub Access</h2>
-                <p class="text-slate-500 text-sm mt-2 px-4">Masukkan <b>Personal Access Token (PAT)</b> Anda untuk mulai mengelola kode.</p>
+                <h2 class="text-3xl font-extrabold tracking-tight">RepoFlow</h2>
+                <p class="text-slate-500 dark:text-slate-400 mt-2 text-sm">Secure GitHub Management</p>
             </div>
             
-            <div class="space-y-4">
-                <input type="password" id="ghToken" placeholder="ghp_xxxxxxxxxxxx" class="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono text-sm">
+            <div class="space-y-5">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Personal Access Token</label>
+                    <input type="password" id="ghToken" placeholder="ghp_xxxxxxxxxxxxxxxxx" class="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono text-sm">
+                </div>
                 
-                <button onclick="login()" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95">
-                    Hubungkan Akun
+                <button onclick="login()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold shadow-xl shadow-blue-500/20 transition-all active:scale-[0.98]">
+                    Connect Account
                 </button>
                 
-                <div class="pt-4 border-t border-slate-100 text-center">
-                    <p class="text-[10px] text-slate-400 mb-2">Belum punya token?</p>
-                    <a href="https://github.com/settings/tokens/new?scopes=repo,delete_repo" target="_blank" class="text-xs text-blue-600 font-bold hover:underline">
-                        Buat Token Baru di GitHub
+                <!-- Get Token Links -->
+                <div class="pt-4 border-t border-slate-100 dark:border-slate-700 flex flex-col gap-3">
+                    <a href="https://github.com/settings/tokens/new?scopes=repo,delete_repo" target="_blank" rel="noopener noreferrer" class="w-full py-3 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-center text-sm flex items-center justify-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        <i data-lucide="external-link" class="w-4 h-4"></i> Get Classic Token
                     </a>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- UI Aplikasi Utama -->
-    <div id="app" class="hidden flex flex-col h-screen overflow-hidden">
+    <!-- Main Application UI -->
+    <div id="app" class="hidden flex h-screen overflow-hidden">
         
-        <!-- Navbar -->
-        <nav class="glass-nav border-b border-slate-200 px-4 md:px-8 py-3.5 flex items-center justify-between sticky top-0 z-40">
-            <div class="flex items-center space-x-3">
-                <button onclick="toggleSidebar()" class="md:hidden p-2 hover:bg-slate-100 rounded-lg text-slate-600">
-                    <i data-lucide="menu" class="w-6 h-6"></i>
-                </button>
-                <div class="flex items-center space-x-2">
-                    <div class="bg-blue-600 p-1.5 rounded-lg hidden sm:block">
-                        <i data-lucide="zap" class="w-4 h-4 text-white"></i>
+        <!-- Sidebar Navigation -->
+        <aside id="sidebar" class="closed fixed md:static inset-y-0 left-0 z-50 w-80 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col shadow-2xl md:shadow-none">
+            <div class="p-6 flex flex-col h-full">
+                <!-- Branding & Theme Toggle -->
+                <div class="flex items-center justify-between mb-8">
+                    <div class="flex items-center space-x-3">
+                        <div class="bg-blue-600 p-2 rounded-xl">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-white">
+                                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                            </svg>
+                        </div>
+                        <span class="font-extrabold text-xl tracking-tight text-slate-800 dark:text-white">RepoFlow</span>
                     </div>
-                    <h1 class="font-extrabold text-lg tracking-tight text-slate-800">RepoFlow</h1>
-                </div>
-            </div>
-
-            <div class="flex items-center space-x-2 md:space-x-4">
-                <div class="flex bg-slate-100 p-1 rounded-xl mr-2 hidden sm:flex">
-                    <button id="navExplorer" onclick="switchTab('explorer')" class="tab-active px-4 py-1.5 text-xs font-bold rounded-lg transition-all">Explorer</button>
-                    <button id="navSettings" onclick="switchTab('settings')" class="px-4 py-1.5 text-xs font-bold text-slate-500 rounded-lg transition-all">Settings</button>
-                </div>
-
-                <div class="flex items-center space-x-3 pl-4 border-l border-slate-200">
-                    <div id="userAvatar" class="w-8 h-8 rounded-full bg-slate-200 overflow-hidden ring-2 ring-white"></div>
-                    <span id="userName" class="text-xs font-bold text-slate-700 hidden sm:block"></span>
-                    <button onclick="switchTab('settings')" id="mobileSettingsBtn" class="sm:hidden p-2 text-slate-400 hover:text-blue-600 transition-colors">
-                        <i data-lucide="settings" class="w-5 h-5"></i>
+                    <button onclick="toggleDarkMode()" class="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-all" title="Toggle Theme">
+                        <i data-lucide="moon" id="themeIcon" class="w-4 h-4"></i>
                     </button>
                 </div>
-            </div>
-        </nav>
 
-        <div class="flex flex-1 overflow-hidden relative">
-            <!-- Sidebar -->
-            <aside id="sidebar" class="closed fixed md:static inset-y-0 left-0 z-50 w-72 md:w-80 bg-white border-r border-slate-200 flex flex-col">
-                <div class="p-5 flex flex-col h-full">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-[10px] font-black uppercase text-slate-400 tracking-widest">Repositori</h2>
-                        <button onclick="openCreateRepoModal()" class="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all">
-                            <i data-lucide="plus" class="w-4 h-4"></i>
+                <!-- Repos Search -->
+                <div class="relative mb-6">
+                    <i data-lucide="search" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input type="text" id="repoSearch" oninput="filterRepos()" placeholder="Search repositories..." class="w-full pl-11 pr-4 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-700 dark:text-slate-200">
+                </div>
+
+                <!-- Repo List Container -->
+                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1 pr-2" id="repoList">
+                    <!-- Populated via JS -->
+                </div>
+
+                <!-- Profile Footer -->
+                <div class="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3 min-w-0">
+                            <div id="userAvatar" class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden ring-2 ring-blue-500/20 shrink-0"></div>
+                            <div class="overflow-hidden">
+                                <p id="userName" class="text-sm font-bold truncate text-slate-800 dark:text-white">User</p>
+                                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Developer</p>
+                            </div>
+                        </div>
+                        <button onclick="logout()" class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors shrink-0" title="Log Out">
+                            <i data-lucide="log-out" class="w-5 h-5"></i>
                         </button>
                     </div>
-                    
-                    <div class="relative mb-4">
-                        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                        <input type="text" id="repoSearch" oninput="filterRepos()" placeholder="Cari repo..." class="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-
-                    <div id="repoList" class="flex-1 overflow-y-auto custom-scrollbar space-y-1"></div>
                 </div>
-            </aside>
+            </div>
+        </aside>
 
-            <div id="sidebarOverlay" onclick="toggleSidebar()" class="hidden fixed inset-0 bg-slate-900/40 z-40 backdrop-blur-[2px]"></div>
+        <!-- Sidebar Overlay (Mobile) -->
+        <div id="sidebarOverlay" onclick="toggleSidebar()" class="hidden fixed inset-0 bg-slate-900/40 z-40 backdrop-blur-[2px]"></div>
 
-            <main class="flex-1 flex flex-col bg-slate-50 overflow-hidden">
+        <!-- Main Content Area -->
+        <main class="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-900">
+            
+            <!-- Top Navbar (3 Column Grid for perfect centering) -->
+            <header class="glass sticky top-0 z-30 px-6 py-4 grid grid-cols-3 items-center border-b border-slate-200 dark:border-slate-700">
                 
-                <!-- Tab Explorer -->
-                <div id="tabExplorer" class="flex flex-col h-full">
-                    <div class="px-4 md:px-8 py-4 border-b border-slate-200 bg-white/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 overflow-hidden">
-                        <div id="breadcrumb" class="flex items-center space-x-2 text-xs md:text-sm font-medium text-slate-500 overflow-x-auto whitespace-nowrap custom-scrollbar pb-1 sm:pb-0">
-                            <span>Pilih repositori untuk memulai</span>
-                        </div>
-                        
-                        <div id="repoActions" class="hidden flex items-center justify-end space-x-2">
-                            <div id="selectionTools" class="hidden flex items-center bg-slate-200/50 p-1 rounded-xl mr-1">
-                                <span id="selectionCount" class="text-[10px] font-bold px-3 text-slate-600">0</span>
-                                <button onclick="bulkDelete()" class="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600">
-                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                <!-- Left: Menu Button -->
+                <div class="flex items-center space-x-4 overflow-hidden">
+                    <button onclick="toggleSidebar()" class="md:hidden p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300 transition-colors">
+                        <i data-lucide="menu" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                
+                <!-- Center: Segmented Control Tabs -->
+                <div class="flex justify-center">
+                    <div class="flex bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-full ring-1 ring-slate-200 dark:ring-white/10 shadow-inner w-fit mx-auto">
+                        <button id="navExplorer" onclick="switchTab('explorer')" class="tab-active px-4 md:px-6 py-1.5 text-xs md:text-sm font-bold rounded-full transition-all duration-300">Explorer</button>
+                        <button id="navSettings" onclick="switchTab('settings')" class="tab-inactive px-4 md:px-6 py-1.5 text-xs md:text-sm font-bold rounded-full transition-all duration-300">Settings</button>
+                    </div>
+                </div>
+
+                <!-- Right: Spacing -->
+                <div class="flex justify-end"></div>
+            </header>
+
+            <!-- Workspace Views -->
+            <div id="workspace" class="flex-1 overflow-y-auto p-4 md:p-10 custom-scrollbar relative">
+                
+                <!-- 1. Welcome View -->
+                <div id="welcomeView" class="h-full flex flex-col items-center justify-center text-center max-w-lg mx-auto animate-in">
+                    <div class="w-24 h-24 bg-blue-100 dark:bg-blue-900/30 rounded-[2rem] flex items-center justify-center mb-8 shadow-xl shadow-blue-500/10">
+                        <i data-lucide="folder-git-2" class="w-12 h-12 text-blue-600 dark:text-blue-400"></i>
+                    </div>
+                    <h2 class="text-3xl font-extrabold mb-4 tracking-tight text-slate-800 dark:text-white">Workspace Ready</h2>
+                    <p class="text-slate-500 dark:text-slate-400 leading-relaxed text-sm">Select a repository from the sidebar to start browsing files and editing code.</p>
+                </div>
+
+                <!-- 2. Browser View -->
+                <div id="browserView" class="hidden animate-in">
+                    <!-- Repo Header -->
+                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-6 bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                        <div>
+                            <div class="flex items-center gap-3 mb-2">
+                                <h3 class="text-2xl font-extrabold text-slate-800 dark:text-white truncate max-w-md" id="repoTitle">Repository</h3>
+                                <button onclick="starRepo()" id="btnStarRepo" class="p-1.5 text-slate-400 hover:text-yellow-500 transition-colors rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700" title="Star Repository">
+                                    <i data-lucide="star" class="w-5 h-5"></i>
                                 </button>
                             </div>
-                            <button onclick="deleteCurrentRepo()" class="p-2 text-slate-400 hover:text-red-500 transition-colors" title="Hapus Repositori">
-                                <i data-lucide="trash-2" class="w-5 h-5"></i>
+                            <div class="flex flex-wrap items-center gap-3 text-xs font-bold text-slate-500 dark:text-slate-400">
+                                <span id="repoLang" class="flex items-center bg-slate-100 dark:bg-slate-900 px-2.5 py-1 rounded-md"></span>
+                                <span id="repoStats" class="flex items-center bg-slate-100 dark:bg-slate-900 px-2.5 py-1 rounded-md"></span>
+                                <button onclick="switchBranch()" class="flex items-center bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-2.5 py-1 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors" title="Change Branch">
+                                    <i data-lucide="git-branch" class="w-3.5 h-3.5 mr-1.5"></i> <span id="repoBranch">main</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Toolbar Actions -->
+                        <div class="flex flex-wrap items-center gap-2.5">
+                            <div class="relative flex-1 sm:flex-none min-w-[140px] md:min-w-[200px]">
+                                <i data-lucide="filter" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                                <input type="text" id="fileSearch" oninput="filterFiles()" placeholder="Filter..." class="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-700 dark:text-slate-200">
+                            </div>
+
+                            <!-- Upload Area -->
+                            <div class="flex items-center space-x-1.5 border-r border-slate-200 dark:border-slate-700 pr-2.5 mr-1">
+                                <button onclick="document.getElementById('fileUploadInput').click()" class="p-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors shadow-sm" title="Upload Files">
+                                    <i data-lucide="upload" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="document.getElementById('folderUploadInput').click()" class="p-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors shadow-sm" title="Upload Folder">
+                                    <i data-lucide="folder-up" class="w-4 h-4"></i>
+                                </button>
+                                <input type="file" id="fileUploadInput" class="hidden" multiple onchange="handleUpload(event, false)">
+                                <input type="file" id="folderUploadInput" class="hidden" webkitdirectory directory multiple onchange="handleUpload(event, true)">
+                            </div>
+
+                            <button onclick="downloadRepoZip()" class="p-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors shadow-sm hidden sm:block" title="Download ZIP">
+                                <i data-lucide="download-cloud" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="toggleSelectionMode()" id="multiBtn" class="px-4 py-2.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-600 transition-all shadow-sm">Select</button>
+                            <button onclick="openCreateModal()" class="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center">
+                                <i data-lucide="plus" class="w-3.5 h-3.5 mr-1 sm:mr-1.5"></i> <span class="hidden sm:inline">New</span>
                             </button>
                         </div>
                     </div>
 
-                    <div id="mainView" class="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar relative">
-                        <div id="welcomeScreen" class="h-full flex flex-col items-center justify-center text-center">
-                            <div class="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mb-6">
-                                <i data-lucide="layout" class="w-8 h-8 text-blue-600"></i>
-                            </div>
-                            <h3 class="text-xl font-bold text-slate-800">Siap Mengelola Kode?</h3>
-                            <button onclick="toggleSidebar()" class="md:hidden mt-6 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm">Buka Menu Repo</button>
-                        </div>
-
-                        <div id="fileBrowser" class="hidden">
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-                                <h3 class="text-lg font-bold text-slate-800 flex items-center">Explorer <span id="fileCount" class="ml-3 px-2 py-0.5 bg-slate-200 text-slate-500 text-[10px] rounded-full">0</span></h3>
-                                <div class="flex items-center space-x-2">
-                                    <button onclick="toggleSelectionMode()" id="multiSelectToggle" class="px-4 py-2 border rounded-xl text-xs font-bold">Pilih Massal</button>
-                                    <button onclick="openCreateFileModal()" class="bg-blue-600 text-white px-5 py-2 rounded-xl text-xs font-bold shadow-lg shadow-blue-100">+ File Baru</button>
-                                </div>
-                            </div>
-                            <div id="fileList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-10"></div>
-                        </div>
-
-                        <div id="fileEditor" class="hidden flex flex-col h-full bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-2xl animate-modal">
-                            <div class="bg-slate-50 px-5 py-3 flex justify-between items-center border-b border-slate-200">
-                                <span id="editingFileName" class="font-bold text-xs text-slate-600 truncate max-w-[200px]">file.txt</span>
-                                <div class="flex space-x-2">
-                                    <button onclick="closeEditor()" class="px-3 py-1.5 text-xs font-bold text-slate-500">Batal</button>
-                                    <button onclick="saveFile()" class="px-4 py-1.5 text-xs font-bold bg-blue-600 text-white rounded-lg">Simpan</button>
-                                </div>
-                            </div>
-                            <textarea id="editorTextArea" class="flex-1 p-5 font-mono text-sm focus:outline-none resize-none leading-relaxed custom-scrollbar" spellcheck="false"></textarea>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tab Settings -->
-                <div id="tabSettings" class="hidden flex-1 overflow-y-auto p-4 md:p-12 animate-modal">
-                    <div class="max-w-2xl mx-auto space-y-8 pb-20">
-                        <!-- Mobile Back Button -->
-                        <button onclick="switchTab('explorer')" class="sm:hidden flex items-center space-x-2 text-blue-600 font-bold mb-4">
-                            <i data-lucide="chevron-left" class="w-5 h-5"></i>
-                            <span>Kembali ke Explorer</span>
+                    <!-- Compact Breadcrumb & Back Button -->
+                    <div class="flex items-center gap-3 mb-4 px-2">
+                        <button id="btnBackDir" onclick="navigateUp()" class="hidden items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors shadow-sm">
+                            <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Back
                         </button>
+                        <span id="currentPathText" class="text-xs font-mono font-medium text-slate-500 dark:text-slate-400">/</span>
+                    </div>
 
-                        <div>
-                            <h2 class="text-2xl font-bold text-slate-800 tracking-tight">Pengaturan & Token</h2>
-                            <p class="text-slate-500 text-sm">Kelola akses dan daftar token Anda di GitHub.</p>
+                    <!-- File Grid (Compact) -->
+                    <div id="fileGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pb-24"></div>
+                </div>
+
+                <!-- 3. Markdown / Image Previewer View -->
+                <div id="previewView" class="hidden animate-in h-full flex flex-col bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-2xl">
+                    <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
+                        <div class="flex items-center space-x-3 min-w-0">
+                            <button onclick="closePreview()" class="p-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-xl text-slate-500 dark:text-slate-300 transition-all shrink-0">
+                                <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                            </button>
+                            <span id="previewTitle" class="font-bold text-sm truncate text-slate-700 dark:text-slate-200">Preview</span>
                         </div>
-
-                        <!-- Card: Manajemen Token Luar -->
-                        <div class="bg-blue-600 rounded-[2rem] p-8 text-white shadow-xl shadow-blue-200 relative overflow-hidden group">
-                            <div class="absolute -right-10 -bottom-10 opacity-10 group-hover:scale-110 transition-transform duration-700">
-                                <i data-lucide="shield-check" class="w-48 h-48"></i>
-                            </div>
-                            <div class="relative z-10">
-                                <h3 class="text-xl font-bold mb-2 flex items-center">
-                                    <i data-lucide="shield-check" class="w-6 h-6 mr-3"></i>
-                                    Dashboard Token GitHub
-                                </h3>
-                                <p class="text-blue-100 text-sm mb-6 leading-relaxed">
-                                    Klik tombol di bawah untuk melihat atau menghapus token langsung melalui situs web resmi GitHub.
-                                </p>
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <a href="https://github.com/settings/tokens" target="_blank" class="flex items-center justify-center space-x-2 bg-white text-blue-600 px-6 py-4 rounded-2xl font-bold text-sm hover:bg-blue-50 transition-all">
-                                        <i data-lucide="external-link" class="w-4 h-4"></i>
-                                        <span>Token Classic</span>
-                                    </a>
-                                    <a href="https://github.com/settings/personal-access-tokens" target="_blank" class="flex items-center justify-center space-x-2 bg-blue-700 text-white px-6 py-4 rounded-2xl font-bold text-sm hover:bg-blue-800 transition-all">
-                                        <i data-lucide="external-link" class="w-4 h-4"></i>
-                                        <span>Fine-grained Token</span>
-                                    </a>
-                                </div>
-                            </div>
+                        <div class="flex space-x-2 shrink-0">
+                            <button id="editFromPreviewBtn" class="px-4 py-2 bg-slate-800 dark:bg-white text-white dark:text-slate-900 rounded-xl text-xs font-bold hover:opacity-90 transition-opacity">Edit Code</button>
                         </div>
+                    </div>
+                    <!-- Rendering Area -->
+                    <div id="previewContent" class="flex-1 overflow-y-auto p-6 md:p-10 prose prose-slate dark:prose-invert max-w-4xl mx-auto w-full custom-scrollbar"></div>
+                </div>
 
-                        <!-- Info Profil -->
-                        <div class="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center gap-6">
-                            <div id="settingsAvatar" class="w-24 h-24 rounded-full bg-slate-100 ring-4 ring-slate-50 overflow-hidden flex items-center justify-center">
-                                <i data-lucide="user" class="w-10 h-10 text-slate-300"></i>
-                            </div>
-                            <div class="text-center md:text-left">
-                                <h3 id="settingsName" class="text-xl font-bold text-slate-800">...</h3>
-                                <p id="settingsBio" class="text-slate-400 text-sm mt-1">GitHub Developer</p>
-                            </div>
+                <!-- 4. Full Code Editor View -->
+                <div id="editorView" class="hidden animate-in h-full flex flex-col bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-2xl relative">
+                    <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
+                        <div class="flex items-center space-x-3 min-w-0">
+                            <button onclick="closeEditor()" class="p-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-xl text-slate-500 dark:text-slate-300 transition-all shrink-0">
+                                <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                            </button>
+                            <span id="editorTitle" class="font-bold text-sm truncate text-slate-700 dark:text-slate-200">code.js</span>
                         </div>
-
-                        <!-- Card: Update & Lihat Token Lokal -->
-                        <div class="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-sm space-y-6">
-                            <div>
-                                <h3 class="font-bold text-slate-800 flex items-center">
-                                    <i data-lucide="key" class="w-5 h-5 mr-3 text-blue-600"></i>
-                                    Token Aktif Saat Ini
-                                </h3>
-                                <p class="text-slate-400 text-xs mt-1">Anda dapat melihat, menyalin, atau memperbarui token yang sedang digunakan aplikasi.</p>
-                            </div>
-                            <div class="space-y-4">
-                                <div class="relative flex flex-col sm:flex-row gap-2">
-                                    <div class="relative flex-1">
-                                        <input type="password" id="settingsTokenInput" class="w-full px-4 py-4 bg-slate-50 border border-slate-100 rounded-xl outline-none font-mono text-sm pr-24 focus:ring-2 focus:ring-blue-500">
-                                        <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-1">
-                                            <button onclick="toggleSettingsTokenVisibility()" class="p-2 text-slate-400 hover:text-blue-600 transition-colors" title="Lihat/Sembunyikan">
-                                                <i data-lucide="eye" id="settingsTokenEye" class="w-5 h-5"></i>
-                                            </button>
-                                            <button onclick="copyCurrentToken()" class="p-2 text-slate-400 hover:text-blue-600 transition-colors" title="Salin Token">
-                                                <i data-lucide="copy" class="w-5 h-5"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <button onclick="updateSettingsToken()" class="bg-blue-600 text-white px-8 py-4 rounded-xl font-bold text-sm hover:bg-blue-700 active:scale-95 transition-all whitespace-nowrap shadow-lg shadow-blue-100">Simpan Baru</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="pt-4">
-                            <button onclick="logout()" class="w-full py-4 border border-red-100 text-red-500 rounded-2xl text-sm font-bold hover:bg-red-50 transition-all flex items-center justify-center space-x-2">
-                                <i data-lucide="log-out" class="w-4 h-4"></i>
-                                <span>Hapus Token & Keluar</span>
+                        <div class="flex space-x-2 shrink-0">
+                            <button onclick="copyEditorContent()" class="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700" title="Copy Code">
+                                <i data-lucide="copy" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="saveFile()" class="px-5 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all flex items-center">
+                                <i data-lucide="save" class="w-3.5 h-3.5 mr-1.5"></i> Save
                             </button>
                         </div>
                     </div>
+                    <textarea id="editorField" class="flex-1 p-6 font-mono text-sm bg-white dark:bg-slate-800 focus:outline-none resize-none leading-relaxed custom-scrollbar text-slate-800 dark:text-slate-300" spellcheck="false" placeholder="Write your code here..."></textarea>
                 </div>
-            </main>
-        </div>
+
+                <!-- 5. Settings View -->
+                <div id="settingsView" class="hidden animate-in flex-col max-w-3xl mx-auto w-full pb-24">
+                    <h2 class="text-3xl font-extrabold mb-2 text-slate-800 dark:text-white tracking-tight">Settings & Profile</h2>
+                    <p class="text-slate-500 dark:text-slate-400 mb-8 text-sm">Manage your GitHub connection, security tokens, and application preferences.</p>
+                    
+                    <!-- Profile Card -->
+                    <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-8 rounded-[2rem] flex flex-col sm:flex-row items-center gap-8 mb-6 shadow-sm">
+                        <img id="setAvatar" src="" class="w-24 h-24 rounded-full border-4 border-slate-50 dark:border-slate-700 shadow-xl shrink-0 object-cover bg-slate-100">
+                        <div class="text-center sm:text-left flex-1 min-w-0">
+                            <h3 id="setName" class="text-2xl font-bold text-slate-800 dark:text-white truncate">Developer</h3>
+                            <p id="setBio" class="text-slate-500 dark:text-slate-400 mt-1 text-sm">GitHub User</p>
+                            <div class="mt-4 flex flex-wrap justify-center sm:justify-start gap-2">
+                                <span class="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full text-[10px] font-bold uppercase tracking-wider">Verified Connection</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Token Management -->
+                    <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-8 rounded-[2rem] mb-6 shadow-sm">
+                        <h3 class="text-lg font-bold mb-5 flex items-center text-slate-800 dark:text-white">
+                            <i data-lucide="key" class="w-5 h-5 mr-3 text-blue-500"></i> Authentication Token
+                        </h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mb-5 leading-relaxed">Update your Personal Access Token. Tokens are stored locally in your browser and never transmitted to any third-party servers.</p>
+                        
+                        <div class="flex flex-col sm:flex-row gap-3 mb-6">
+                            <div class="relative flex-1">
+                                <input type="password" id="setTokenInput" class="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pr-20 font-mono text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 dark:text-slate-200">
+                                <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-slate-50 dark:bg-slate-900 pl-2">
+                                    <button onclick="toggleSetToken()" class="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-lg" title="Toggle Visibility">
+                                        <i data-lucide="eye" id="setTokenEye" class="w-4 h-4"></i>
+                                    </button>
+                                    <button onclick="copySetToken()" class="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-lg" title="Copy Token">
+                                        <i data-lucide="copy" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <button onclick="updateSettingsToken()" class="px-8 py-3.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 whitespace-nowrap">Save Update</button>
+                        </div>
+                    </div>
+
+                    <!-- Danger Zone -->
+                    <div class="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 p-8 rounded-[2rem]">
+                        <h3 class="text-lg font-bold text-red-600 dark:text-red-400 mb-2 flex items-center">
+                            <i data-lucide="alert-triangle" class="w-5 h-5 mr-3"></i> Danger Zone
+                        </h3>
+                        <p class="text-xs text-red-500/80 dark:text-red-400/80 mb-5">Logging out will remove your token from this device's local storage.</p>
+                        <button onclick="logout()" class="w-full py-4 bg-white dark:bg-slate-800 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 font-bold rounded-xl hover:bg-red-50 dark:hover:bg-red-900/30 transition-all flex items-center justify-center gap-2 shadow-sm">
+                            <i data-lucide="log-out" class="w-4 h-4"></i> Secure Log Out
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </main>
     </div>
 
-    <!-- Modals & Containers (Confirm, Create, Notification) -->
-    <div id="confirmOverlay" class="hidden fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-[2rem] p-8 w-full max-w-sm shadow-2xl animate-modal text-center">
-            <div id="confirmIconBox" class="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 bg-red-100 text-red-600">
+    <!-- Modals System -->
+    <div id="modalContainer" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
+        
+        <!-- Create Item Modal -->
+        <div id="createModal" class="hidden bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-md animate-in my-auto">
+            <h3 class="text-2xl font-extrabold mb-6 text-slate-800 dark:text-white tracking-tight">Create New</h3>
+            
+            <div class="flex space-x-1 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl mb-6 border border-slate-200 dark:border-slate-700">
+                <button onclick="switchCreateType('file')" id="typeFile" class="flex-1 py-2 text-xs font-bold rounded-lg bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm transition-all border border-slate-200 dark:border-slate-700">File</button>
+                <button onclick="switchCreateType('folder')" id="typeFolder" class="flex-1 py-2 text-xs font-bold rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-all">Folder</button>
+            </div>
+            
+            <div class="space-y-5">
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 px-1" id="createLabel">File Name</label>
+                    <input type="text" id="itemName" placeholder="e.g., index.js or docs/" class="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm text-slate-800 dark:text-slate-200 transition-all">
+                </div>
+                
+                <div id="folderHint" class="hidden bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl border border-blue-100 dark:border-blue-800/30">
+                    <p class="text-[10px] text-blue-600 dark:text-blue-400 font-medium leading-relaxed flex items-start gap-2">
+                        <i data-lucide="info" class="w-3.5 h-3.5 shrink-0 mt-0.5"></i>
+                        GitHub does not support empty folders. A hidden `.gitkeep` file will be created automatically.
+                    </p>
+                </div>
+                
+                <div class="flex space-x-3 pt-2">
+                    <button onclick="closeModal()" class="flex-1 py-3.5 text-sm font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors">Cancel</button>
+                    <button onclick="submitCreation()" class="flex-1 py-3.5 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all">Confirm</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Confirm Danger Modal -->
+        <div id="confirmModal" class="hidden bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-sm text-center animate-in my-auto">
+            <div id="confirmIcon" class="w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-6 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 shadow-inner">
                 <i data-lucide="alert-triangle" class="w-8 h-8"></i>
             </div>
-            <h3 id="confirmTitle" class="text-xl font-bold mb-3 text-slate-800">Konfirmasi</h3>
-            <p id="confirmMessage" class="text-slate-500 text-sm mb-8 leading-relaxed"></p>
+            <h3 id="confirmTitle" class="text-2xl font-extrabold mb-3 text-slate-800 dark:text-white tracking-tight">Are you sure?</h3>
+            <p id="confirmMessage" class="text-slate-500 dark:text-slate-400 text-sm mb-8 leading-relaxed">This action cannot be undone.</p>
             <div class="flex space-x-3">
-                <button id="confirmCancelBtn" class="flex-1 py-4 text-sm font-bold text-slate-500">Batal</button>
-                <button id="confirmConfirmBtn" class="flex-1 py-4 bg-red-600 text-white rounded-xl font-bold shadow-lg shadow-red-100">Lanjut</button>
+                <button id="confirmCancelBtn" class="flex-1 py-3.5 text-sm font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors bg-slate-50 dark:bg-slate-900 rounded-xl">Cancel</button>
+                <button id="confirmConfirmBtn" class="flex-1 py-3.5 bg-red-600 text-white rounded-xl font-bold shadow-lg shadow-red-500/20 hover:bg-red-700 transition-all">Proceed</button>
             </div>
         </div>
     </div>
 
-    <div id="modalOverlay" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-        <div id="createRepoModal" class="hidden bg-white rounded-[2rem] p-6 w-full max-w-md shadow-2xl animate-modal">
-            <h3 class="text-xl font-bold mb-5">Repositori Baru</h3>
-            <div class="space-y-4">
-                <input type="text" id="newRepoName" placeholder="Nama Repo" class="w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none">
-                <textarea id="newRepoDesc" placeholder="Deskripsi (Opsional)" class="w-full px-4 py-3 bg-slate-50 border rounded-xl h-24 outline-none"></textarea>
-                <div class="flex items-center space-x-3 p-3 bg-slate-50 rounded-xl">
-                    <input type="checkbox" id="newRepoPrivate" class="w-4 h-4 text-blue-600">
-                    <label for="newRepoPrivate" class="text-sm font-semibold">Private</label>
-                </div>
-                <div class="flex space-x-3 pt-4">
-                    <button onclick="closeModal()" class="flex-1 py-3 font-bold text-slate-500">Batal</button>
-                    <button onclick="submitCreateRepo()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Buat</button>
-                </div>
-            </div>
-        </div>
-
-        <div id="createFileModal" class="hidden bg-white rounded-[2rem] p-6 w-full max-w-sm shadow-2xl text-center animate-modal">
-            <h3 class="text-xl font-bold mb-4">File Baru</h3>
-            <input type="text" id="newFileName" placeholder="contoh: index.html" class="w-full px-4 py-4 bg-slate-50 border rounded-xl text-center font-bold outline-none">
-            <div class="flex space-x-3 mt-6">
-                <button onclick="closeModal()" class="flex-1 py-3 font-bold text-slate-500">Batal</button>
-                <button onclick="submitCreateFile()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-100">Lanjut</button>
-            </div>
+    <!-- Batch Selection Floating Bar -->
+    <div id="selectionBar" class="fixed bottom-6 md:bottom-8 left-1/2 -translate-x-1/2 bg-slate-900/90 dark:bg-slate-100/90 backdrop-blur-md px-5 py-3.5 rounded-2xl shadow-2xl border border-slate-700 dark:border-slate-300 items-center space-x-4 hidden animate-in z-50 text-white dark:text-slate-900">
+        <span class="text-xs md:text-sm font-bold whitespace-nowrap"><span id="selCount" class="text-blue-400 dark:text-blue-600">0</span> selected</span>
+        <div class="h-6 w-px bg-slate-700 dark:bg-slate-300"></div>
+        <div class="flex items-center space-x-2">
+            <button onclick="bulkDelete()" class="p-2 text-red-400 dark:text-red-600 hover:bg-red-500/20 dark:hover:bg-red-500/10 rounded-lg transition-all" title="Delete Selected">
+                <i data-lucide="trash-2" class="w-4 h-4 md:w-5 md:h-5"></i>
+            </button>
+            <button onclick="toggleSelectionMode()" class="px-3 md:px-4 py-2 bg-slate-800 dark:bg-slate-200 hover:bg-slate-700 dark:hover:bg-slate-300 rounded-lg text-xs font-bold transition-colors">Clear</button>
         </div>
     </div>
 
-    <div id="notificationContainer" class="fixed bottom-6 right-6 left-6 md:left-auto z-[100] space-y-3"></div>
+    <!-- Notification Engine -->
+    <div id="notificationStack" class="fixed bottom-6 left-4 right-4 md:left-auto md:right-8 z-[100] space-y-3 md:w-80 pointer-events-none flex flex-col items-center md:items-end"></div>
 
     <script>
-        let GITHUB_TOKEN = localStorage.getItem('gh_manager_token') || '';
+        // --- Core Application State ---
+        let GITHUB_TOKEN = localStorage.getItem('rp_v2_token') || '';
         let currentUser = null;
         let repositories = [];
-        let currentRepo = null;
+        let currentRepo = null; 
+        let currentBranch = 'main';
         let currentPath = '';
         let currentFileData = null;
         let selectionMode = false;
         let selectedItems = new Set();
-        let currentTab = 'explorer';
+        let createType = 'file';
+        let isDarkMode = localStorage.getItem('rp_v2_theme') === 'dark';
+        let lastExplorerView = 'welcomeView';
+        let allFilesCache = [];
 
-        function initIcons() { lucide.createIcons(); }
+        // --- Initialization & UI Tools ---
+        function initIcons() {
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+        }
 
         function toggleSidebar() {
             const s = document.getElementById('sidebar');
-            const o = document.getElementById('sidebarOverlay');
-            if (s.classList.contains('closed')) {
-                s.classList.replace('closed', 'open');
-                o.classList.remove('hidden');
-            } else {
-                s.classList.replace('open', 'closed');
-                o.classList.add('hidden');
+            const overlay = document.getElementById('sidebarOverlay');
+            if(s && overlay) {
+                s.classList.toggle('closed');
+                if (s.classList.contains('closed')) {
+                    overlay.classList.add('hidden');
+                } else {
+                    overlay.classList.remove('hidden');
+                }
             }
+        }
+
+        function toggleDarkMode() {
+            isDarkMode = !isDarkMode;
+            document.documentElement.classList.toggle('dark');
+            localStorage.setItem('rp_v2_theme', isDarkMode ? 'dark' : 'light');
+            updateThemeUI();
+        }
+
+        function updateThemeUI() {
+            const icon = document.getElementById('themeIcon');
+            if (icon) {
+                icon.setAttribute('data-lucide', isDarkMode ? 'moon' : 'sun');
+                initIcons();
+            }
+        }
+
+        function init() {
+            initIcons();
+            if (isDarkMode) document.documentElement.classList.add('dark');
+            updateThemeUI();
+            setupKeyboardShortcuts();
+            login().catch(e => {
+                console.error(e);
+                showPortal('auth');
+            });
+        }
+
+        function setupKeyboardShortcuts() {
+            document.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    if (!document.getElementById('editorView').classList.contains('hidden')) {
+                        saveFile();
+                    }
+                }
+                if (e.key === 'Escape') {
+                    if (!document.getElementById('modalContainer').classList.contains('hidden')) closeModal();
+                    else if (!document.getElementById('previewView').classList.contains('hidden')) closePreview();
+                    else if (!document.getElementById('editorView').classList.contains('hidden')) closeEditor();
+                }
+            });
+        }
+
+        function showView(viewId) {
+            const views = ['welcomeView', 'browserView', 'previewView', 'editorView', 'settingsView'];
+            if (['browserView', 'previewView', 'editorView'].includes(viewId)) {
+                lastExplorerView = viewId;
+            }
+            views.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.toggle('hidden', id !== viewId);
+            });
         }
 
         function switchTab(tab) {
-            currentTab = tab;
-            const explorer = document.getElementById('tabExplorer');
-            const settings = document.getElementById('tabSettings');
-            const navExplorer = document.getElementById('navExplorer');
-            const navSettings = document.getElementById('navSettings');
-            const mobileSettingsBtn = document.getElementById('mobileSettingsBtn');
-
-            if (tab === 'explorer') {
-                if(explorer) explorer.classList.remove('hidden');
-                if(settings) settings.classList.add('hidden');
-                navExplorer?.classList.add('tab-active');
-                navSettings?.classList.remove('tab-active');
-                mobileSettingsBtn?.classList.remove('text-blue-600');
-                mobileSettingsBtn?.classList.add('text-slate-400');
-            } else {
-                if(explorer) explorer.classList.add('hidden');
-                if(settings) settings.classList.remove('hidden');
-                navSettings?.classList.add('tab-active');
-                navExplorer?.classList.remove('tab-active');
-                mobileSettingsBtn?.classList.add('text-blue-600');
-                mobileSettingsBtn?.classList.remove('text-slate-400');
+            if (!currentRepo && tab !== 'settings') {
+                showView('welcomeView');
+            } else if (tab === 'settings') {
+                showView('settingsView');
                 updateSettingsUI();
+            } else if (tab === 'explorer') {
+                showView(lastExplorerView || 'browserView');
             }
-            if (window.innerWidth < 768) {
-                const sidebar = document.getElementById('sidebar');
-                if (sidebar && sidebar.classList.contains('open')) toggleSidebar();
-            }
-        }
 
-        function showCustomConfirm(title, message, options = {}) {
-            return new Promise((resolve) => {
-                const overlay = document.getElementById('confirmOverlay');
-                const titleEl = document.getElementById('confirmTitle');
-                const msgEl = document.getElementById('confirmMessage');
-                const confirmBtn = document.getElementById('confirmConfirmBtn');
-                const cancelBtn = document.getElementById('confirmCancelBtn');
-                if(titleEl) titleEl.innerText = title;
-                if(msgEl) msgEl.innerText = message;
-                if(confirmBtn) confirmBtn.innerText = options.confirmText || 'Lanjut';
-                if(overlay) overlay.classList.remove('hidden');
-                const cleanup = (val) => { overlay.classList.add('hidden'); resolve(val); };
-                confirmBtn.onclick = () => cleanup(true);
-                cancelBtn.onclick = () => cleanup(false);
-            });
-        }
-
-        async function apiCall(endpoint, method = 'GET', body = null, tokenOverride = null) {
-            const url = `https://api.github.com/${endpoint}`;
-            const token = tokenOverride || GITHUB_TOKEN;
-            try {
-                const res = await fetch(url, {
-                    method,
-                    headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
-                    body: body ? JSON.stringify(body) : null
-                });
-                if (res.status === 204) return true;
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.message || 'Error');
-                return data;
-            } catch (err) { throw err; }
-        }
-
-        async function login() {
-            const input = document.getElementById('ghToken');
-            const token = input.value.trim() || GITHUB_TOKEN;
-            if (!token) { showAuth(); return; }
-            try {
-                const userData = await apiCall('user', 'GET', null, token);
-                if (userData?.login) {
-                    GITHUB_TOKEN = token;
-                    localStorage.setItem('gh_manager_token', token);
-                    currentUser = userData;
-                    document.getElementById('authOverlay').classList.add('hidden');
-                    document.getElementById('app').classList.remove('hidden');
-                    document.getElementById('loadingOverlay').classList.add('hidden');
-                    const nameEl = document.getElementById('userName');
-                    if(nameEl) nameEl.innerText = userData.login;
-                    const avatarEl = document.getElementById('userAvatar');
-                    if(avatarEl) avatarEl.innerHTML = `<img src="${userData.avatar_url}" class="w-full h-full object-cover">`;
-                    notify(`Berhasil masuk sebagai ${userData.login}`, "success");
-                    fetchRepos();
+            // Update Tab UI States
+            const tabs = ['explorer', 'settings'];
+            tabs.forEach(t => {
+                const btn = document.getElementById('nav' + t.charAt(0).toUpperCase() + t.slice(1));
+                if (btn) {
+                    if (t === tab) {
+                        btn.classList.add('tab-active');
+                        btn.classList.remove('tab-inactive');
+                    } else {
+                        btn.classList.remove('tab-active');
+                        btn.classList.add('tab-inactive');
+                    }
                 }
+            });
+
+            if (window.innerWidth < 768 && !document.getElementById('sidebar').classList.contains('closed')) {
+                toggleSidebar();
+            }
+            initIcons();
+        }
+
+        // --- Auth Logic ---
+        async function login() {
+            const token = document.getElementById('ghToken').value.trim() || GITHUB_TOKEN;
+            if (!token) {
+                showPortal('auth');
+                return;
+            }
+
+            try {
+                const user = await apiCall('user', 'GET', null, token);
+                GITHUB_TOKEN = token;
+                localStorage.setItem('rp_v2_token', token);
+                currentUser = user;
+                
+                document.getElementById('userName').innerText = user.login;
+                document.getElementById('userAvatar').innerHTML = `<img src="${user.avatar_url}" class="w-full h-full object-cover">`;
+                
+                showPortal('app');
+                fetchRepos();
+                notify(`Welcome back, ${user.login}!`, 'success');
             } catch (err) {
-                localStorage.removeItem('gh_manager_token');
-                showAuth();
-                notify("Gagal: " + err.message, "error");
+                localStorage.removeItem('rp_v2_token');
+                showPortal('auth');
+                notify("Authentication Failed: " + err.message, 'error');
             }
         }
 
-        function showAuth() {
+        function showPortal(type) {
             document.getElementById('loadingOverlay').classList.add('hidden');
-            document.getElementById('authOverlay').classList.remove('hidden');
-            document.getElementById('app').classList.add('hidden');
+            document.getElementById('authOverlay').classList.toggle('hidden', type !== 'auth');
+            document.getElementById('app').classList.toggle('hidden', type !== 'app');
         }
 
         async function logout() {
-            const confirmed = await showCustomConfirm("Keluar?", "Aplikasi akan menghapus token Anda secara lokal.", { isDanger: true });
-            if (confirmed) { localStorage.removeItem('gh_manager_token'); location.reload(); }
+            const confirm = await showConfirm("End Session?", "This will remove your GitHub token from this browser.", true);
+            if (confirm) {
+                localStorage.removeItem('rp_v2_token');
+                location.reload();
+            }
         }
 
+        // --- API Engine ---
+        async function apiCall(endpoint, method = 'GET', body = null, tokenOverride = null) {
+            const url = `https://api.github.com/${endpoint}`;
+            const token = tokenOverride || GITHUB_TOKEN;
+            const res = await fetch(url, {
+                method,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json'
+                },
+                body: body ? JSON.stringify(body) : null
+            });
+
+            if (res.status === 204) return true; 
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || `API Error: ${res.status}`);
+            return data;
+        }
+
+        // --- Repository Management ---
         async function fetchRepos() {
             const list = document.getElementById('repoList');
-            if(!list) return;
-            list.innerHTML = `<div class="p-10 text-center text-xs opacity-50 animate-pulse font-bold">MEMUAT REPO...</div>`;
+            list.innerHTML = `<div class="p-8 text-center"><div class="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-3"></div><p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Fetching Repos...</p></div>`;
             try {
                 repositories = await apiCall('user/repos?sort=updated&per_page=100');
-                renderRepoList();
-            } catch (e) { notify(e.message, "error"); }
+                renderRepos();
+            } catch (e) { notify(e.message, 'error'); }
         }
 
-        function renderRepoList(query = '') {
+        function renderRepos(query = '') {
             const list = document.getElementById('repoList');
-            if(!list) return;
             const filtered = repositories.filter(r => r.name.toLowerCase().includes(query.toLowerCase()));
+            
             list.innerHTML = filtered.map(r => `
-                <button onclick="selectRepo('${r.owner.login}', '${r.name}')" 
-                        class="w-full text-left p-4 rounded-2xl mb-1 flex items-start space-x-3 transition-all ${currentRepo?.name === r.name ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'hover:bg-slate-100 text-slate-600'}">
-                    <i data-lucide="${r.private ? 'lock' : 'globe'}" class="w-4 h-4 mt-0.5 opacity-60"></i>
+                <button onclick="selectRepo('${r.owner.login}', '${r.name}', '${r.default_branch}')" 
+                        class="w-full text-left p-4 rounded-2xl mb-1.5 flex items-start space-x-3 transition-all border border-transparent ${currentRepo?.name === r.name ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20 border-blue-500' : 'hover:bg-slate-100 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300'}">
+                    <i data-lucide="${r.private ? 'lock' : 'globe'}" class="w-4 h-4 mt-0.5 opacity-70 shrink-0"></i>
                     <div class="overflow-hidden">
                         <div class="font-bold text-sm truncate">${r.name}</div>
-                        <div class="text-[10px] opacity-70 truncate">${r.description || 'Tanpa deskripsi'}</div>
+                        <div class="text-[10px] opacity-70 flex items-center mt-1 font-medium tracking-wide">
+                            <span class="${r.language ? 'mr-2' : ''}">${r.language || ''}</span>
+                            ${r.stargazers_count > 0 ? `<span class="flex items-center"><i data-lucide="star" class="w-3 h-3 mr-0.5"></i> ${r.stargazers_count}</span>` : ''}
+                        </div>
                     </div>
-                </button>`).join('') || `<p class="text-center p-4 text-xs opacity-50 font-bold">KOSONG</p>`;
+                </button>
+            `).join('') || `<div class="p-8 text-center text-slate-400"><i data-lucide="folder-search" class="w-8 h-8 mx-auto mb-2 opacity-50"></i><p class="text-xs font-bold">No repositories found</p></div>`;
             initIcons();
         }
 
-        function filterRepos() { renderRepoList(document.getElementById('repoSearch').value); }
+        function filterRepos() { renderRepos(document.getElementById('repoSearch').value); }
 
-        async function selectRepo(owner, name) {
+        function updateBreadcrumb() {
+            const btnBack = document.getElementById('btnBackDir');
+            const pathText = document.getElementById('currentPathText');
+            
+            if (currentPath === '') {
+                btnBack.classList.add('hidden');
+                btnBack.classList.remove('flex');
+                pathText.innerText = `/${currentRepo ? currentRepo.name : ''}`;
+            } else {
+                btnBack.classList.remove('hidden');
+                btnBack.classList.add('flex');
+                pathText.innerText = `/${currentRepo.name}/${currentPath}`;
+            }
+        }
+
+        function navigateUp() {
+            if (currentPath === '') return;
+            const parent = currentPath.split('/').slice(0, -1).join('/');
+            fetchContents(parent);
+        }
+
+        async function selectRepo(owner, name, branch) {
             currentRepo = { owner, name };
+            currentBranch = branch || 'main';
             currentPath = '';
             selectionMode = false;
             selectedItems.clear();
-            if (window.innerWidth < 768) toggleSidebar();
+            updateSelectionBar();
+            
+            // Memastikan state view diubah ke browserView agar Explorer terbuka
+            lastExplorerView = 'browserView';
+
+            // Set Titles
+            document.getElementById('repoTitle').innerText = name;
+            document.getElementById('repoBranch').innerText = currentBranch;
+            document.getElementById('fileSearch').value = '';
+            
+            const repoDetails = repositories.find(r => r.name === name);
+            if(repoDetails) {
+                document.getElementById('repoLang').innerHTML = `<i data-lucide="code-2" class="w-3.5 h-3.5 mr-1.5 opacity-70"></i> ${repoDetails.language || 'Mixed'}`;
+                document.getElementById('repoStats').innerHTML = `<i data-lucide="star" class="w-3.5 h-3.5 mr-1.5 opacity-70"></i> ${repoDetails.stargazers_count} Stars`;
+            }
+            
+            renderRepos();
+            
             switchTab('explorer');
-            const welcome = document.getElementById('welcomeScreen');
-            const fileBrowser = document.getElementById('fileBrowser');
-            const repoActions = document.getElementById('repoActions');
-            const fileEditor = document.getElementById('fileEditor');
-            if(welcome) welcome.classList.add('hidden');
-            if(fileBrowser) fileBrowser.classList.remove('hidden');
-            if(repoActions) repoActions.classList.remove('hidden');
-            if(fileEditor) fileEditor.classList.add('hidden');
-            renderRepoList();
             fetchContents();
+            
+            if (window.innerWidth < 768) toggleSidebar();
         }
 
+        async function switchBranch() {
+            const newBranch = prompt("Enter branch name to switch to:", currentBranch);
+            if (newBranch && newBranch !== currentBranch) {
+                currentBranch = newBranch;
+                document.getElementById('repoBranch').innerText = currentBranch;
+                notify(`Switched to branch: ${currentBranch}`, "info");
+                currentPath = '';
+                fetchContents();
+            }
+        }
+
+        async function starRepo() {
+            if(!currentRepo) return;
+            try {
+                await apiCall(`user/starred/${currentRepo.owner}/${currentRepo.name}`, 'PUT', {}, null);
+                notify("Repository starred!", "success");
+                const icon = document.querySelector('#btnStarRepo i');
+                if(icon) { icon.classList.add('fill-yellow-500', 'text-yellow-500'); }
+            } catch(e) { notify("Could not star repository", "error"); }
+        }
+
+        function downloadRepoZip() {
+            if(!currentRepo) return;
+            const url = `https://github.com/${currentRepo.owner}/${currentRepo.name}/archive/refs/heads/${currentBranch}.zip`;
+            window.open(url, '_blank');
+            notify("Download started...", "info");
+        }
+
+        // --- Multi-Upload Processing (Files & Folders) ---
+        async function handleUpload(event, isFolder) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+            
+            notify(`Uploading ${files.length} file(s)...`, "info");
+            let successCount = 0;
+            let failCount = 0;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (isFolder && file.name.startsWith('.')) continue;
+
+                const reader = new FileReader();
+                
+                const uploadPromise = new Promise((resolve) => {
+                    reader.onload = async (e) => {
+                        const content = e.target.result.split(',')[1];
+                        const relativePath = isFolder ? file.webkitRelativePath : file.name;
+                        const fullPath = currentPath ? `${currentPath}/${relativePath}` : relativePath;
+
+                        try {
+                            await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${fullPath}`, 'PUT', {
+                                message: `Upload ${relativePath} via RepoFlow`,
+                                content: content,
+                                branch: currentBranch
+                            });
+                            successCount++;
+                        } catch (err) {
+                            console.error("Upload failed", err);
+                            failCount++;
+                        }
+                        resolve();
+                    };
+                    reader.readAsDataURL(file);
+                });
+
+                await uploadPromise;
+            }
+
+            if (failCount === 0) {
+                notify(`Successfully uploaded ${successCount} file(s)`, "success");
+            } else {
+                notify(`Uploaded ${successCount}. Failed ${failCount}.`, "error");
+            }
+            
+            event.target.value = ''; 
+            fetchContents(currentPath);
+        }
+
+        // --- File Browser Engine (Compact Layout) ---
         async function fetchContents(path = '') {
             currentPath = path;
-            const list = document.getElementById('fileList');
-            if(!list) return;
-            list.innerHTML = `<div class="col-span-full py-20 text-center opacity-30 font-bold animate-pulse">MEMUAT ISI...</div>`;
+            const grid = document.getElementById('fileGrid');
+            grid.innerHTML = `
+                <div class="col-span-full py-24 flex flex-col items-center justify-center">
+                    <div class="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+                    <p class="text-slate-400 font-bold text-xs uppercase tracking-widest animate-pulse">Scanning Directory...</p>
+                </div>`;
             try {
-                const data = await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${path}`);
-                renderFileList(Array.isArray(data) ? data : [data]);
+                const data = await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${path}?ref=${currentBranch}`);
+                allFilesCache = Array.isArray(data) ? data : [data];
+                
+                allFilesCache.sort((a, b) => {
+                    if (a.type === 'dir' && b.type !== 'dir') return -1;
+                    if (a.type !== 'dir' && b.type === 'dir') return 1;
+                    return a.name.localeCompare(b.name);
+                });
+
+                renderFiles(allFilesCache);
                 updateBreadcrumb();
-            } catch (e) { notify(e.message, "error"); }
+            } catch (e) { 
+                if(e.message.includes('404')) {
+                    grid.innerHTML = `<div class="col-span-full py-20 text-center opacity-50"><p class="font-bold">Directory not found or empty on this branch.</p></div>`;
+                } else {
+                    notify(e.message, 'error'); 
+                }
+            }
         }
 
-        function renderFileList(items) {
-            const list = document.getElementById('fileList');
-            if(!list) return;
-            const fileCountEl = document.getElementById('fileCount');
-            if(fileCountEl) fileCountEl.innerText = items.length;
+        function filterFiles() {
+            const query = document.getElementById('fileSearch').value.toLowerCase();
+            const filtered = allFilesCache.filter(item => item.name.toLowerCase().includes(query));
+            renderFiles(filtered);
+        }
+
+        function renderFiles(items) {
+            const grid = document.getElementById('fileGrid');
             let html = '';
-            if (currentPath) {
-                html += `<div onclick="fetchContents('${currentPath.split('/').slice(0,-1).join('/')}')" class="p-4 bg-white border rounded-3xl flex items-center space-x-3 cursor-pointer hover:border-blue-400 transition-all group"><i data-lucide="arrow-left" class="w-5 h-5 opacity-30 group-hover:text-blue-600 transition-colors"></i><span class="text-sm font-bold opacity-50">Kembali</span></div>`;
-            }
+
             items.forEach(item => {
                 const isDir = item.type === 'dir';
-                const isSelected = Array.from(selectedItems).some(i => JSON.parse(i).path === item.path);
-                html += `<div class="group relative p-4 bg-white border ${isSelected ? 'border-blue-500 bg-blue-50/20' : 'border-slate-100'} rounded-3xl flex flex-col justify-between min-h-[120px] transition-all hover:shadow-lg"><div class="absolute top-3 right-3"><input type="checkbox" onchange="toggleItemSelection('${item.path}', '${item.sha}', this.checked)" ${isSelected ? 'checked' : ''} class="w-5 h-5 rounded-lg border-slate-200 text-blue-600 ${selectionMode ? 'block' : 'hidden group-hover:block'}"></div><div onclick="${isDir ? `fetchContents('${item.path}')` : `openEditor('${item.path}', '${item.name}', '${item.sha}')`}" class="flex-1 cursor-pointer"><div class="w-10 h-10 rounded-xl mb-3 flex items-center justify-center ${isDir ? 'bg-yellow-50 text-yellow-500' : 'bg-blue-50 text-blue-500'}"><i data-lucide="${isDir ? 'folder' : 'file'}" class="w-5 h-5"></i></div><p class="text-sm font-bold text-slate-700 pr-4 truncate">${item.name}</p></div><div class="mt-3 flex justify-end"><button onclick="deleteSingleFile('${item.path}', '${item.sha}', '${item.name}')" class="p-1 text-slate-300 hover:text-red-500"><i data-lucide="trash" class="w-4 h-4"></i></button></div></div>`;
+                const isSelected = Array.from(selectedItems).some(si => JSON.parse(si).path === item.path);
+                const ext = item.name.split('.').pop().toLowerCase();
+                const isImage = ['png','jpg','jpeg','svg','gif','webp','ico'].includes(ext);
+                const isCode = ['js','html','css','py','json','ts','jsx','tsx','php'].includes(ext);
+
+                let iconName = isDir ? 'folder' : (isImage ? 'image' : (isCode ? 'file-code-2' : 'file-text'));
+                let iconColor = isDir ? 'text-blue-500 bg-blue-50 dark:bg-blue-500/10' : 
+                               (isImage ? 'text-purple-500 bg-purple-50 dark:bg-purple-500/10' : 
+                               'text-slate-500 bg-slate-100 dark:bg-slate-700 dark:text-slate-300');
+
+                // COMPACT CARD DESIGN
+                html += `
+                    <div class="file-card group relative p-3 bg-white dark:bg-slate-800 border ${isSelected ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/10 ring-1 ring-blue-500' : 'border-slate-200 dark:border-slate-700'} rounded-2xl flex items-center gap-3 transition-all hover:shadow-md">
+                        
+                        <div class="z-10 shrink-0 ${selectionMode ? 'block' : 'hidden group-hover:block'}">
+                            <label class="flex items-center cursor-pointer">
+                                <input type="checkbox" onchange="toggleItemSelection('${item.path}', '${item.sha}', this.checked)" ${isSelected ? 'checked' : ''} class="peer sr-only">
+                                <div class="w-5 h-5 rounded-[6px] border-2 border-slate-300 dark:border-slate-500 peer-checked:bg-blue-600 peer-checked:border-blue-600 flex items-center justify-center transition-all bg-white dark:bg-slate-800 shadow-sm">
+                                    <i data-lucide="check" class="w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity"></i>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div onclick="${isDir ? `fetchContents('${item.path}')` : `openItem('${item.path}', '${item.name}', '${item.sha}')`}" class="w-10 h-10 rounded-[10px] flex items-center justify-center ${iconColor} transition-colors shrink-0 cursor-pointer">
+                            <i data-lucide="${iconName}" class="w-5 h-5"></i>
+                        </div>
+
+                        <div onclick="${isDir ? `fetchContents('${item.path}')` : `openItem('${item.path}', '${item.name}', '${item.sha}')`}" class="flex-1 min-w-0 cursor-pointer pr-2">
+                            <p class="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">${item.name}</p>
+                            <p class="text-[10px] text-slate-400 dark:text-slate-500 font-semibold tracking-wide mt-0.5">${isDir ? 'Folder' : formatSize(item.size)}</p>
+                        </div>
+
+                        <div class="flex items-center gap-0.5 action-btn bg-white dark:bg-slate-800 pl-1 rounded-l-lg shrink-0">
+                            <button onclick="renameItem('${item.path}', '${item.name}', '${item.sha}', '${item.type}')" class="p-1.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg transition-colors" title="Rename">
+                                <i data-lucide="edit-3" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="deleteSingle('${item.path}', '${item.sha}', '${item.name}')" class="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition-colors" title="Delete">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                            ${!isDir ? `<a href="${item.download_url}" target="_blank" rel="noopener noreferrer" class="p-1.5 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-lg transition-colors hidden sm:block" title="Raw File"><i data-lucide="external-link" class="w-4 h-4"></i></a>` : ''}
+                        </div>
+                    </div>`;
             });
-            list.innerHTML = html;
+            grid.innerHTML = html || `<div class="col-span-full py-20 text-center"><div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 mb-4"><i data-lucide="folder-open" class="w-8 h-8 text-slate-300"></i></div><p class="opacity-40 font-bold tracking-widest text-xs uppercase">No items in this directory</p></div>`;
             initIcons();
         }
 
-        function toggleItemSelection(p, s, c) {
-            const data = JSON.stringify({path:p, sha:s});
-            if (c) selectedItems.add(data);
-            else { for (let item of selectedItems) { if (JSON.parse(item).path === p) { selectedItems.delete(item); break; } } }
-            const tools = document.getElementById('selectionTools');
-            const count = document.getElementById('selectionCount');
-            if(tools) tools.classList.toggle('hidden', selectedItems.size === 0);
-            if(count) count.innerText = selectedItems.size;
+        function toggleItemSelection(path, sha, isChecked) {
+            const itemStr = JSON.stringify({ path, sha });
+            if (isChecked) {
+                selectedItems.add(itemStr);
+            } else {
+                selectedItems.delete(itemStr);
+            }
+            updateSelectionBar();
+            renderFiles(allFilesCache); 
+        }
+
+        function updateSelectionBar() {
+            const bar = document.getElementById('selectionBar');
+            const countStr = document.getElementById('selCount');
+            if (selectedItems.size > 0) {
+                bar.classList.remove('hidden');
+                bar.classList.add('flex');
+                countStr.innerText = selectedItems.size;
+            } else {
+                bar.classList.add('hidden');
+                bar.classList.remove('flex');
+            }
+        }
+
+        // --- Content Viewers (Editor & Image/Markdown Previewer) ---
+        async function openItem(path, name, sha) {
+            const ext = name.split('.').pop().toLowerCase();
+            const isMarkdown = ext === 'md';
+            const isImage = ['png','jpg','jpeg','svg','gif','webp','ico'].includes(ext);
+
+            if (isMarkdown || isImage) {
+                openPreview(path, name, isMarkdown, ext);
+            } else {
+                openEditor(path, name, sha);
+            }
+        }
+
+        async function openPreview(path, name, isMD, ext) {
+            showView('previewView');
+            document.getElementById('previewTitle').innerText = name;
+            const contentEl = document.getElementById('previewContent');
+            contentEl.innerHTML = `<div class="flex items-center justify-center h-40 animate-pulse text-slate-400 font-bold text-sm">Rendering preview...</div>`;
+            
+            try {
+                const data = await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${path}?ref=${currentBranch}`);
+                
+                if (isMD) {
+                    const mdText = decodeB64(data.content);
+                    contentEl.innerHTML = marked.parse(mdText);
+                } else {
+                    const mimeType = ext === 'svg' ? 'image/svg+xml' : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+                    if (data.content) {
+                        const base64Data = data.content.replace(/\n/g, ''); 
+                        contentEl.innerHTML = `<div class="flex items-center justify-center h-full min-h-[400px] bg-slate-100/50 dark:bg-slate-900/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-700"><img src="data:${mimeType};base64,${base64Data}" class="max-w-full max-h-[70vh] rounded-xl shadow-lg object-contain"></div>`;
+                    } else if (data.download_url) {
+                        contentEl.innerHTML = `<div class="flex items-center justify-center h-full min-h-[400px] bg-slate-100/50 dark:bg-slate-900/50 rounded-2xl p-4 border border-slate-200 dark:border-slate-700"><img src="${data.download_url}" class="max-w-full max-h-[70vh] rounded-xl shadow-lg object-contain"></div>`;
+                    }
+                }
+                
+                document.getElementById('editFromPreviewBtn').onclick = () => {
+                    closePreview();
+                    openEditor(path, name, data.sha);
+                };
+            } catch (e) { notify(e.message, 'error'); closePreview(); }
+        }
+
+        async function openEditor(path, name, sha) {
+            showView('editorView');
+            document.getElementById('editorTitle').innerText = name;
+            const field = document.getElementById('editorField');
+            field.value = "// Fetching repository data...";
+            field.disabled = true;
+
+            try {
+                const data = await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${path}?ref=${currentBranch}`);
+                field.value = decodeB64(data.content);
+                field.disabled = false;
+                currentFileData = { sha, path, name };
+            } catch (e) { notify(e.message, 'error'); closeEditor(); }
+        }
+
+        function closePreview() { showView('browserView'); }
+        function closeEditor() { showView('browserView'); }
+
+        async function saveFile() {
+            const field = document.getElementById('editorField');
+            if (field.disabled) return;
+            
+            const originalText = field.value;
+            field.disabled = true;
+            notify("Saving changes...", "info");
+            
+            try {
+                const content = encodeB64(originalText);
+                await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${currentFileData.path}`, 'PUT', {
+                    message: `Update ${currentFileData.name} via RepoFlow`,
+                    content,
+                    sha: currentFileData.sha,
+                    branch: currentBranch
+                });
+                notify("File saved successfully", 'success');
+                closeEditor();
+                fetchContents(currentPath);
+            } catch (e) { 
+                notify("Save failed: " + e.message, 'error'); 
+                field.disabled = false;
+            }
+        }
+
+        function copyEditorContent() {
+            const text = document.getElementById('editorField').value;
+            navigator.clipboard.writeText(text).then(() => {
+                notify("Code copied to clipboard!", "success");
+            }).catch(() => {
+                notify("Failed to copy code", "error");
+            });
+        }
+
+        // --- File System Operations ---
+        function switchCreateType(type) {
+            createType = type;
+            const btnFile = document.getElementById('typeFile');
+            const btnFolder = document.getElementById('typeFolder');
+            const hint = document.getElementById('folderHint');
+            
+            const activeClass = "flex-1 py-2 text-xs font-bold rounded-lg bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm transition-all border border-slate-200 dark:border-slate-700".split(' ');
+            const inactiveClass = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-all".split(' ');
+
+            if (type === 'file') {
+                btnFile.className = activeClass.join(' ');
+                btnFolder.className = inactiveClass.join(' ');
+                document.getElementById('itemName').placeholder = "e.g., index.js";
+                document.getElementById('createLabel').innerText = "File Name";
+                hint.classList.add('hidden');
+            } else {
+                btnFolder.className = activeClass.join(' ');
+                btnFile.className = inactiveClass.join(' ');
+                document.getElementById('itemName').placeholder = "e.g., src/components";
+                document.getElementById('createLabel').innerText = "Folder Name";
+                hint.classList.remove('hidden');
+            }
+        }
+
+        async function submitCreation() {
+            const nameInput = document.getElementById('itemName');
+            const name = nameInput.value.trim();
+            if (!name) return notify("Name cannot be empty", "error");
+            
+            const isFolder = createType === 'folder';
+            const cleanName = name.replace(/\/$/, ""); 
+            const fullPath = (currentPath ? `${currentPath}/${cleanName}` : cleanName) + (isFolder ? '/.gitkeep' : '');
+            
+            try {
+                notify(`Creating ${createType}...`, "info");
+                await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${fullPath}`, 'PUT', {
+                    message: `Create ${isFolder ? 'directory' : 'file'}: ${cleanName}`,
+                    content: btoa(isFolder ? 'Created by RepoFlow' : ''),
+                    branch: currentBranch
+                });
+                notify(`Successfully created`, 'success');
+                closeModal();
+                nameInput.value = '';
+                
+                if (isFolder) {
+                    fetchContents(currentPath);
+                } else {
+                    fetchContents(currentPath).then(() => {
+                        const newFile = allFilesCache.find(f => f.path === fullPath);
+                        if(newFile) openEditor(newFile.path, newFile.name, newFile.sha);
+                    });
+                }
+            } catch (e) { notify(e.message, 'error'); }
+        }
+
+        async function deleteSingle(path, sha, name) {
+            const confirm = await showConfirm("Delete Item", `Are you absolutely sure you want to delete "${name}"?`, true);
+            if (!confirm) return;
+            try {
+                notify(`Deleting ${name}...`, "info");
+                await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${path}`, 'DELETE', {
+                    message: `Delete ${name}`,
+                    sha,
+                    branch: currentBranch
+                });
+                notify("Item permanently deleted", "success");
+                fetchContents(currentPath);
+            } catch (e) { notify("Deletion failed: " + e.message, 'error'); }
+        }
+
+        async function renameItem(path, name, sha, type) {
+            const newName = prompt(`Rename ${type === 'dir' ? 'Folder' : 'File'} "${name}" to:`, name);
+            if (!newName || newName === name) return;
+
+            const parentPath = path.split('/').slice(0, -1).join('/');
+            const newPath = parentPath ? `${parentPath}/${newName}` : newName;
+
+            try {
+                notify(`Processing rename for ${name}...`, "info");
+
+                if (type === 'file') {
+                    const data = await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${path}?ref=${currentBranch}`);
+                    await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${newPath}`, 'PUT', {
+                        message: `Rename file ${name} to ${newName}`,
+                        content: data.content,
+                        branch: currentBranch
+                    });
+                    await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${path}`, 'DELETE', {
+                        message: `Cleanup old file after rename`,
+                        sha: data.sha,
+                        branch: currentBranch
+                    });
+                } else {
+                    const itemsInDir = await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${path}?ref=${currentBranch}`);
+                    for (let item of itemsInDir) {
+                        if (item.type === 'file') {
+                            const data = await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${item.path}?ref=${currentBranch}`);
+                            await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${newPath}/${item.name}`, 'PUT', {
+                                message: `Move ${item.name} into ${newName}`,
+                                content: data.content,
+                                branch: currentBranch
+                            });
+                            await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${item.path}`, 'DELETE', {
+                                message: `Cleanup old file`,
+                                sha: data.sha,
+                                branch: currentBranch
+                            });
+                        }
+                    }
+                }
+
+                notify("Renamed successfully", "success");
+                fetchContents(currentPath);
+            } catch (e) { notify("Rename failed: " + e.message, 'error'); }
         }
 
         function toggleSelectionMode() {
             selectionMode = !selectionMode;
-            const btn = document.getElementById('multiSelectToggle');
-            if(btn) btn.className = selectionMode ? 'px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold' : 'px-4 py-2 border rounded-xl text-xs font-bold';
-            if (!selectionMode) { selectedItems.clear(); const tools = document.getElementById('selectionTools'); if(tools) tools.classList.add('hidden'); }
-            fetchContents(currentPath);
+            const btn = document.getElementById('multiBtn');
+            if (selectionMode) {
+                btn.classList.add('bg-blue-600', 'text-white', 'border-blue-600');
+                btn.classList.remove('bg-white', 'dark:bg-slate-700', 'text-slate-600', 'dark:text-slate-300');
+            } else {
+                btn.classList.remove('bg-blue-600', 'text-white', 'border-blue-600');
+                btn.classList.add('bg-white', 'dark:bg-slate-700', 'text-slate-600', 'dark:text-slate-300');
+                selectedItems.clear(); 
+                updateSelectionBar();
+            }
+            fetchContents(currentPath); 
         }
 
-        async function openEditor(path, name, sha) {
-            const browser = document.getElementById('fileBrowser');
-            const editor = document.getElementById('fileEditor');
-            const fileNameEl = document.getElementById('editingFileName');
-            const area = document.getElementById('editorTextArea');
-            if(browser) browser.classList.add('hidden');
-            if(editor) editor.classList.remove('hidden');
-            if(fileNameEl) fileNameEl.innerText = name;
-            if(area) area.value = "Mengambil konten...";
-            try {
-                const data = await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${path}`);
-                const content = data.encoding === 'base64' ? decodeURIComponent(atob(data.content.replace(/\s/g, '')).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')) : data.content;
-                currentFileData = { sha, path, name };
-                if(area) area.value = content;
-            } catch (e) { notify(e.message, "error"); closeEditor(); }
-        }
+        async function bulkDelete() {
+            const confirm = await showConfirm(`Delete ${selectedItems.size} items?`, `This will permanently remove the selected content from the repository.`, true);
+            if (!confirm) return;
 
-        function closeEditor() { 
-            const editor = document.getElementById('fileEditor');
-            const browser = document.getElementById('fileBrowser');
-            if(editor) editor.classList.add('hidden'); 
-            if(browser) browser.classList.remove('hidden'); 
-        }
-
-        async function saveFile() {
-            const area = document.getElementById('editorTextArea');
-            if(!area) return;
-            const content = btoa(encodeURIComponent(area.value).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1)));
-            try {
-                await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${currentFileData.path}`, 'PUT', { message: `Update via RepoFlow: ${currentFileData.name}`, content, sha: currentFileData.sha });
-                notify("Tersimpan!", "success");
-                closeEditor();
-                fetchContents(currentPath);
-            } catch (e) { notify(e.message, "error"); }
-        }
-
-        function updateBreadcrumb() {
-            const b = document.getElementById('breadcrumb');
-            if(!b) return;
-            let parts = currentPath.split('/').filter(p => p);
-            let html = `<button onclick="selectRepo('${currentRepo.owner}','${currentRepo.name}')" class="hover:text-blue-600 font-bold flex items-center"><i data-lucide="home" class="w-4 h-4 mr-2"></i> ${currentRepo.name}</button>`;
-            let tempPath = '';
-            parts.forEach(p => { tempPath += (tempPath ? '/' : '') + p; html += `<i data-lucide="chevron-right" class="w-3 h-3 mx-1 opacity-20"></i><button onclick="fetchContents('${tempPath}')" class="hover:text-blue-600">${p}</button>`; });
-            b.innerHTML = html;
-            initIcons();
+            notify(`Deleting ${selectedItems.size} items...`, "info");
+            let successCount = 0;
+            
+            for (let item of selectedItems) {
+                const {path, sha} = JSON.parse(item);
+                try {
+                    await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${path}`, 'DELETE', {
+                        message: `Bulk delete via RepoFlow`,
+                        sha,
+                        branch: currentBranch
+                    });
+                    successCount++;
+                } catch (e) { console.error("Failed to delete", path, e); }
+            }
+            
+            notify(`Successfully deleted ${successCount}/${selectedItems.size} items`, "success");
+            selectedItems.clear();
+            toggleSelectionMode(); 
         }
 
         // --- Settings Management ---
         function updateSettingsUI() {
             if (!currentUser) return;
-            const avatar = document.getElementById('settingsAvatar');
-            const name = document.getElementById('settingsName');
-            const bio = document.getElementById('settingsBio');
-            const input = document.getElementById('settingsTokenInput');
-            if(avatar) avatar.innerHTML = `<img src="${currentUser.avatar_url}" class="w-full h-full object-cover">`;
+            const avatar = document.getElementById('setAvatar');
+            const name = document.getElementById('setName');
+            const bio = document.getElementById('setBio');
+            const input = document.getElementById('setTokenInput');
+            
+            if(avatar) avatar.src = currentUser.avatar_url;
             if(name) name.innerText = currentUser.name || currentUser.login;
             if(bio) bio.innerText = currentUser.bio || 'GitHub Developer';
             if(input) input.value = GITHUB_TOKEN;
         }
 
-        function toggleSettingsTokenVisibility() {
-            const input = document.getElementById('settingsTokenInput');
-            const eye = document.getElementById('settingsTokenEye');
-            if (!input || !eye) return;
+        function toggleSetToken() {
+            const input = document.getElementById('setTokenInput');
+            const eye = document.getElementById('setTokenEye');
             if (input.type === 'password') {
                 input.type = 'text';
                 eye.setAttribute('data-lucide', 'eye-off');
@@ -628,128 +1154,133 @@
             initIcons();
         }
 
-        function copyCurrentToken() {
-            const input = document.getElementById('settingsTokenInput');
-            if(!input) return;
+        function copySetToken() {
+            const input = document.getElementById('setTokenInput');
             const type = input.type;
             input.type = 'text'; 
             input.select();
             document.execCommand('copy');
             input.type = type; 
-            notify("Token disalin!", "success");
+            notify("Token copied to clipboard!", "success");
         }
 
         async function updateSettingsToken() {
-            const input = document.getElementById('settingsTokenInput');
-            const newToken = input?.value.trim();
-            if (!newToken) return notify("Token kosong", "error");
+            const newToken = document.getElementById('setTokenInput').value.trim();
+            if (!newToken) return notify("Token cannot be empty", "error");
+            
+            notify("Verifying token...", "info");
             try {
-                const userData = await apiCall('user', 'GET', null, newToken);
-                if (userData?.login) {
+                const user = await apiCall('user', 'GET', null, newToken);
+                if (user?.login) {
                     GITHUB_TOKEN = newToken;
-                    localStorage.setItem('gh_manager_token', newToken);
-                    currentUser = userData;
-                    notify("Token berhasil diperbarui!", "success");
+                    localStorage.setItem('rp_v2_token', newToken);
+                    currentUser = user;
+                    notify("Token successfully updated!", "success");
                     updateSettingsUI();
                     fetchRepos();
                 }
-            } catch (e) { notify("Gagal: " + e.message, "error"); }
+            } catch (e) { notify("Invalid token: " + e.message, "error"); }
         }
 
-        function openCreateRepoModal() { 
-            const overlay = document.getElementById('modalOverlay');
-            const repoModal = document.getElementById('createRepoModal');
-            if(overlay) overlay.classList.remove('hidden'); 
-            if(repoModal) repoModal.classList.remove('hidden'); 
-        }
-        function openCreateFileModal() { 
-            const overlay = document.getElementById('modalOverlay');
-            const fileModal = document.getElementById('createFileModal');
-            if(overlay) overlay.classList.remove('hidden'); 
-            if(fileModal) fileModal.classList.remove('hidden'); 
-        }
-        function closeModal() { 
-            const overlay = document.getElementById('modalOverlay');
-            const repoModal = document.getElementById('createRepoModal');
-            const fileModal = document.getElementById('createFileModal');
-            if(overlay) overlay.classList.add('hidden'); 
-            if(repoModal) repoModal.classList.add('hidden'); 
-            if(fileModal) fileModal.classList.add('hidden'); 
-        }
-
-        async function submitCreateRepo() {
-            const nameEl = document.getElementById('newRepoName');
-            const name = nameEl?.value;
-            if (!name) return;
-            try {
-                await apiCall('user/repos', 'POST', { name, description: document.getElementById('newRepoDesc')?.value, private: document.getElementById('newRepoPrivate')?.checked, auto_init: true });
-                notify("Repo dibuat", "success"); closeModal(); fetchRepos();
-            } catch (e) { notify(e.message, "error"); }
-        }
-
-        async function submitCreateFile() {
-            const nameEl = document.getElementById('newFileName');
-            const name = nameEl?.value;
-            if (!name) return;
-            const fullPath = currentPath ? `${currentPath}/${name}` : name;
-            currentFileData = { sha: null, path: fullPath, name };
-            closeModal();
-            const browser = document.getElementById('fileBrowser');
-            const editor = document.getElementById('fileEditor');
-            const editName = document.getElementById('editingFileName');
-            const area = document.getElementById('editorTextArea');
-            if(browser) browser.classList.add('hidden');
-            if(editor) editor.classList.remove('hidden');
-            if(editName) editName.innerText = name;
-            if(area) area.value = "";
-        }
-
-        async function deleteSingleFile(path, sha, name) {
-            const yes = await showCustomConfirm("Hapus File?", `Hapus "${name}"?`, { isDanger: true });
-            if (yes) { try { await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${path}`, 'DELETE', { message: 'Delete via RepoFlow', sha }); notify("Dihapus", "success"); fetchContents(currentPath); } catch (e) { notify(e.message, "error"); } }
-        }
-
-        async function deleteCurrentRepo() {
-            const yes = await showCustomConfirm("Hapus Repo?", `Hapus permanen ${currentRepo.name}?`, { isDanger: true });
-            if (yes) {
-                try {
-                    await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}`, 'DELETE');
-                    notify("Terhapus", "success"); currentRepo = null;
-                    const welcome = document.getElementById('welcomeScreen');
-                    const browser = document.getElementById('fileBrowser');
-                    const actions = document.getElementById('repoActions');
-                    const bread = document.getElementById('breadcrumb');
-                    if(welcome) welcome.classList.remove('hidden');
-                    if(browser) browser.classList.add('hidden');
-                    if(actions) actions.classList.add('hidden');
-                    if(bread) bread.innerHTML = "<span>Pilih repo di menu</span>";
-                    fetchRepos();
-                } catch (e) { notify(e.message, "error"); }
-            }
-        }
-
-        async function bulkDelete() {
-            const yes = await showCustomConfirm("Hapus Massal?", `Hapus ${selectedItems.size} item?`, { isDanger: true });
-            if (yes) {
-                notify("Menghapus...", "info");
-                for (let item of selectedItems) {
-                    const {path, sha} = JSON.parse(item);
-                    try { await apiCall(`repos/${currentRepo.owner}/${currentRepo.name}/contents/${path}`, 'DELETE', { message: 'Bulk', sha }); } catch (e) {}
+        // --- Modals & Notification Utility ---
+        function showConfirm(title, msg, isDanger = false) {
+            return new Promise(res => {
+                const modal = document.getElementById('modalContainer');
+                const box = document.getElementById('confirmModal');
+                
+                document.getElementById('createModal').classList.add('hidden');
+                
+                document.getElementById('confirmTitle').innerText = title;
+                document.getElementById('confirmMessage').innerText = msg;
+                
+                const icon = document.getElementById('confirmIcon');
+                const btn = document.getElementById('confirmConfirmBtn');
+                
+                if (isDanger) {
+                    icon.className = "w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-6 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 shadow-inner";
+                    btn.className = "flex-1 py-3.5 bg-red-600 text-white rounded-xl font-bold shadow-lg shadow-red-500/20 hover:bg-red-700 transition-all";
+                } else {
+                    icon.className = "w-16 h-16 rounded-3xl flex items-center justify-center mx-auto mb-6 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shadow-inner";
+                    btn.className = "flex-1 py-3.5 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all";
                 }
-                notify("Selesai", "success"); selectedItems.clear(); toggleSelectionMode();
+
+                modal.classList.remove('hidden');
+                box.classList.remove('hidden');
+
+                const cleanup = (val) => { 
+                    modal.classList.add('hidden'); 
+                    box.classList.add('hidden'); 
+                    res(val); 
+                };
+                
+                document.getElementById('confirmConfirmBtn').onclick = () => cleanup(true);
+                document.getElementById('confirmCancelBtn').onclick = () => cleanup(false);
+            });
+        }
+
+        function openCreateModal() {
+            document.getElementById('modalContainer').classList.remove('hidden');
+            document.getElementById('confirmModal').classList.add('hidden');
+            
+            document.getElementById('createModal').classList.remove('hidden');
+            document.getElementById('itemName').focus();
+        }
+
+        function closeModal() {
+            document.getElementById('modalContainer').classList.add('hidden');
+            document.getElementById('createModal').classList.add('hidden');
+            document.getElementById('confirmModal').classList.add('hidden');
+        }
+
+        function notify(msg, type = 'info') {
+            const stack = document.getElementById('notificationStack');
+            
+            while (stack.children.length >= 3) {
+                stack.removeChild(stack.firstChild);
             }
-        }
-
-        function notify(msg, type = "info") {
-            const container = document.getElementById('notificationContainer');
-            if(!container) return;
-            const bg = type === 'success' ? 'bg-green-600' : (type === 'error' ? 'bg-red-600' : 'bg-blue-600');
+            
+            const bg = type === 'success' ? 'bg-emerald-600' : (type === 'error' ? 'bg-red-600' : 'bg-slate-800 dark:bg-slate-700');
+            const icon = type === 'success' ? 'check-circle-2' : (type === 'error' ? 'alert-octagon' : 'info');
             const id = Date.now();
-            container.insertAdjacentHTML('beforeend', `<div id="notif-${id}" class="${bg} text-white p-4 rounded-2xl shadow-xl flex items-center space-x-3 animate-bounce shadow-lg"><span class="text-xs font-bold uppercase tracking-wider">${msg}</span></div>`);
-            setTimeout(() => document.getElementById(`notif-${id}`)?.remove(), 4000);
+            
+            stack.insertAdjacentHTML('beforeend', `
+                <div id="notif-${id}" class="w-full ${bg} text-white px-5 py-4 rounded-2xl shadow-xl flex items-center space-x-3 animate-in pointer-events-auto border border-white/10">
+                    <i data-lucide="${icon}" class="w-5 h-5 shrink-0 opacity-80"></i>
+                    <p class="text-sm font-semibold tracking-wide">${msg}</p>
+                </div>
+            `);
+            initIcons();
+            
+            setTimeout(() => {
+                const el = document.getElementById(`notif-${id}`);
+                if (el) { 
+                    el.style.opacity = '0'; 
+                    el.style.transform = 'translateY(10px) scale(0.95)'; 
+                    el.style.transition = 'all 0.3s ease';
+                    setTimeout(() => el.remove(), 300); 
+                }
+            }, 4000);
         }
 
-        window.onload = login;
+        // --- Utility Helpers ---
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        function decodeB64(str) {
+            try { return decodeURIComponent(atob(str.replace(/\s/g, '')).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')); } 
+            catch (e) { return atob(str); }
+        }
+
+        function encodeB64(str) {
+            return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1)));
+        }
+
+        window.onload = init;
     </script>
 </body>
 </html>
