@@ -140,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// --- HOME SCREEN (WITH SEARCH & STATS) ---
+// --- HOME SCREEN ---
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
   @override
@@ -191,14 +191,13 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
-          // SEARCH BAR
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: SearchBar(
               controller: _searchController,
               hintText: 'Search repositories...',
               elevation: MaterialStateProperty.all(0),
-              backgroundColor: MaterialStateProperty.all(Colors.slate.shade100.withOpacity(0.5)),
+              backgroundColor: MaterialStateProperty.all(Colors.blueGrey.shade50),
               leading: const Icon(Icons.search, color: Colors.grey),
               shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
             ),
@@ -238,7 +237,7 @@ class _RepoCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.slate.shade100),
+        border: Border.all(color: Colors.blueGrey.shade50),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))]
       ),
       child: InkWell(
@@ -257,7 +256,7 @@ class _RepoCard extends StatelessWidget {
                   Expanded(
                     child: Text(repo['name'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: -0.5)),
                   ),
-                  Icon(repo['private'] ? Icons.lock_outline : Icons.public_outlined, size: 18, color: Colors.slate),
+                  Icon(repo['private'] ? Icons.lock_outline : Icons.public_outlined, size: 18, color: Colors.blueGrey),
                 ],
               ),
               const SizedBox(height: 12),
@@ -268,7 +267,7 @@ class _RepoCard extends StatelessWidget {
                     decoration: BoxDecoration(shape: BoxShape.circle, color: getLangColor(repo['language'])),
                   ),
                   const SizedBox(width: 8),
-                  Text(repo['language'] ?? 'Mixed', style: const TextStyle(fontSize: 13, color: Colors.slate, fontWeight: FontWeight.w500)),
+                  Text(repo['language'] ?? 'Mixed', style: const TextStyle(fontSize: 13, color: Colors.blueGrey, fontWeight: FontWeight.w500)),
                   const Spacer(),
                   const Icon(Icons.star_rounded, size: 16, color: Colors.orangeAccent),
                   const SizedBox(width: 4),
@@ -283,7 +282,6 @@ class _RepoCard extends StatelessWidget {
   }
 }
 
-// --- EXPLORER SCREEN (WITH BRANCHES & COMMITS) ---
 class ExplorerScreen extends StatefulWidget {
   final String owner;
   final String repo;
@@ -360,16 +358,14 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
                     return ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      leading: Icon(isDir ? Icons.folder_rounded : Icons.insert_drive_file_rounded, color: isDir ? Colors.blue : Colors.slate),
+                      leading: Icon(isDir ? Icons.folder_rounded : Icons.insert_drive_file_rounded, color: isDir ? Colors.blue : Colors.blueGrey),
                       title: Text(item['name'], style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-                      trailing: const Icon(Icons.chevron_right_rounded, size: 20, color: Colors.slate),
+                      trailing: const Icon(Icons.chevron_right_rounded, size: 20, color: Colors.blueGrey),
                       onTap: () {
                         if (isDir) {
                           Navigator.push(context, MaterialPageRoute(
                             builder: (_) => ExplorerScreen(owner: widget.owner, repo: widget.repo, path: item['path'], branch: _currentBranch),
                           ));
-                        } else {
-                          // Open Editor...
                         }
                       },
                     );
@@ -377,7 +373,7 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
                 ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {}, // Action Create
+        onPressed: () {}, 
         label: const Text('New'),
         icon: const Icon(Icons.add),
         backgroundColor: Colors.blue.shade600,
@@ -387,7 +383,6 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
   }
 }
 
-// --- COMMIT HISTORY VIEW ---
 class _CommitHistoryView extends StatelessWidget {
   final String owner;
   final String repo;
@@ -410,7 +405,7 @@ class _CommitHistoryView extends StatelessWidget {
               children: [
                 Container(
                   width: 40, height: 4, margin: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(color: Colors.slate.shade300, borderRadius: BorderRadius.circular(10)),
+                  decoration: BoxDecoration(color: Colors.blueGrey.shade300, borderRadius: BorderRadius.circular(10)),
                 ),
                 const Padding(
                   padding: EdgeInsets.all(16.0),
