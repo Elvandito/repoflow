@@ -25,7 +25,6 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
-          # Baris "cache: 'gradle'" dihapus dari sini agar tidak error
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -33,9 +32,9 @@ jobs:
           channel: 'stable'
           cache: true
 
-      # Menambahkan perintah flutter create untuk berjaga-jaga jika folder android/ belum ada di repo
-      - name: Ensure Flutter Project Exists
-        run: flutter create .
+      # Memaksa pembuatan project dengan nama paket huruf kecil
+      - name: Ensure Flutter Project
+        run: flutter create --project-name repoflow .
 
       - name: Install dependencies
         run: flutter pub get
