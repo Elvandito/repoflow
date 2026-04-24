@@ -320,6 +320,46 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
     }
   }
 
+  // Dialog Pilihan Cabang (Branch Switcher)
+  Future<void> _showBranchPicker() async {
+    showDialog(context: context, builder: (_) => const Center(child: CircularProgressIndicator()));
+    try {
+      final branches = await GitHubService.getBranches(widget.owner, widget.repo);
+      if(mounted) Navigator.pop(context); // Close loading
+      
+      if(mounted) {
+        showModalBottomSheet(
+          context: context,
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+          builder: (context) {
+            return ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              itemCount: branches.length,
+              itemBuilder: (context, index) {
+                final b = branches[index]['name'];
+                return ListTile(
+                  leading: const Icon(Icons.account_tree), // Perbaikan Icons.git_branch -> Icons.account_tree
+                  title: Text(b, style: TextStyle(fontWeight: b == _currentBranch ? FontWeight.bold : FontWeight.normal)),
+                  trailing: b == _currentBranch ? const Icon(Icons.check, color: Colors.blue) : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() => _currentBranch = b);
+                    _loadContents();
+                  },
+                );
+              },
+            );
+          }
+        );
+      }
+    } catch(e) {
+      if(mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to load branches')));
+      }
+    }
+  }
+
   void _toggleSelection(String path) {
     setState(() {
       if (_selectedFilePaths.contains(path)) {
@@ -453,12 +493,16 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(widget.path.isEmpty ? widget.repo : widget.path.split('/').last, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                Row(
-                  children: [
-                    const Icon(Icons.git_branch, size: 12, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Text(_currentBranch, style: const TextStyle(fontSize: 12, color: Colors.blue)),
-                  ],
+                GestureDetector(
+                  onTap: _showBranchPicker,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.account_tree, size: 12, color: Colors.grey), // Perbaikan Icons.git_branch -> Icons.account_tree
+                      const SizedBox(width: 4),
+                      Text(_currentBranch, style: const TextStyle(fontSize: 12, color: Colors.blue)),
+                      const Icon(Icons.arrow_drop_down, size: 16, color: Colors.blue),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -568,7 +612,7 @@ class _EditorScreenState extends State<EditorScreen> {
         _currentSha = res[0]['sha'];
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to load content')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to load content')));
     } finally {
       setState(() => _isLoading = false);
     }
