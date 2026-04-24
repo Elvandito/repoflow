@@ -1,7 +1,5 @@
 name: Flutter Build & Release
 
-# Workflow ini akan terpicu setiap kali ada push ke branch main,
-# pull request ke main, atau push tag versi baru (misal: v4.0.0)
 on:
   push:
     branches: [ "main" ]
@@ -10,7 +8,6 @@ on:
   pull_request:
     branches: [ "main" ]
 
-# Hak akses yang dibutuhkan agar GitHub Action bisa membuat Release
 permissions:
   contents: write
 
@@ -20,41 +17,38 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Mengambil kode dari repositori Anda
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Menyiapkan environment Java (Wajib untuk kompilasi Android)
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
-          cache: 'gradle'
+          # Baris "cache: 'gradle'" dihapus dari sini agar tidak error
 
-      # 3. Menyiapkan environment Flutter versi Stable terbaru
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
 
-      # 4. Mengunduh semua library yang ada di pubspec.yaml
+      # Menambahkan perintah flutter create untuk berjaga-jaga jika folder android/ belum ada di repo
+      - name: Ensure Flutter Project Exists
+        run: flutter create .
+
       - name: Install dependencies
         run: flutter pub get
 
-      # 5. Membangun (Build) file APK Android dalam mode Release
       - name: Build APK
         run: flutter build apk --release
 
-      # 6. Mengunggah file APK sementara sebagai Artifact agar bisa diunduh manual
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: repoflow-apk
           path: build/app/outputs/flutter-apk/app-release.apk
 
-      # 7. Jika push berupa Tag versi (misal: v4.0.0), otomatis buat Release!
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
