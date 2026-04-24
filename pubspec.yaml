@@ -1,4 +1,4 @@
-name: repoflow
+name: RepoFlow
 description: Native GitHub Repository Manager
 publish_to: 'none'
 version: 4.0.0+1
