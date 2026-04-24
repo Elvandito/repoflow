@@ -1,0 +1,26 @@
+name: repoflow
+description: Native GitHub Repository Manager
+publish_to: 'none'
+version: 4.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Library HTTP untuk komunikasi dengan GitHub API
+  http: ^1.1.0
+  # Library untuk menyimpan token secara aman di local storage perangkat
+  shared_preferences: ^2.2.1
+  # Library untuk merender file README.md
+  flutter_markdown: ^0.6.18
+  cupertino_icons: ^1.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
