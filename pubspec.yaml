@@ -9,11 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # Library HTTP untuk komunikasi dengan GitHub API
   http: ^1.1.0
-  # Library untuk menyimpan token secara aman di local storage perangkat
   shared_preferences: ^2.2.1
-  # Library untuk merender file README.md
   flutter_markdown: ^0.6.18
   cupertino_icons: ^1.0.2
 
