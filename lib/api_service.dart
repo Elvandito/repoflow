@@ -54,6 +54,16 @@ class GitHubService {
     throw Exception('Failed to load repositories');
   }
 
+  // FITUR BARU: Mengambil riwayat commit
+  static Future<List<dynamic>> getCommits(String owner, String repo) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/repos/$owner/$repo/commits?per_page=20'),
+      headers: _headers,
+    );
+    if (res.statusCode == 200) return jsonDecode(res.body);
+    throw Exception('Failed to load commits');
+  }
+
   static Future<List<dynamic>> getBranches(String owner, String repo) async {
     final res = await http.get(
       Uri.parse('$baseUrl/repos/$owner/$repo/branches'),
@@ -69,7 +79,6 @@ class GitHubService {
         : '$baseUrl/repos/$owner/$repo/contents/$path?ref=$branch';
         
     final res = await http.get(Uri.parse(url), headers: _headers);
-    
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body);
       return data is List ? data : [data];
@@ -91,19 +100,10 @@ class GitHubService {
     final url = '$baseUrl/repos/$owner/$repo/contents/$path';
     final bytes = utf8.encode(content);
     final base64Content = base64Encode(bytes);
-
-    final body = {
-      'message': message,
-      'content': base64Content,
-      'branch': branch,
-    };
+    final body = {'message': message, 'content': base64Content, 'branch': branch};
     if (sha != null) body['sha'] = sha;
-
     final res = await http.put(Uri.parse(url), headers: _headers, body: jsonEncode(body));
-    if (res.statusCode != 200 && res.statusCode != 201) {
-      final errorData = jsonDecode(res.body);
-      throw Exception(errorData['message'] ?? 'Failed to save file');
-    }
+    if (res.statusCode != 200 && res.statusCode != 201) throw Exception('Failed to save file');
   }
 
   static Future<void> deleteFile({
@@ -115,32 +115,14 @@ class GitHubService {
     required String branch,
   }) async {
     final url = '$baseUrl/repos/$owner/$repo/contents/$path';
-    final body = {
-      'message': message,
-      'sha': sha,
-      'branch': branch,
-    };
-
+    final body = {'message': message, 'sha': sha, 'branch': branch};
     final res = await http.delete(Uri.parse(url), headers: _headers, body: jsonEncode(body));
-    if (res.statusCode != 200) {
-      final errorData = jsonDecode(res.body);
-      throw Exception(errorData['message'] ?? 'Failed to delete file');
-    }
+    if (res.statusCode != 200) throw Exception('Failed to delete file');
   }
 
-  // FITUR BARU: Menghapus Repository
   static Future<void> deleteRepo(String owner, String repo) async {
     final url = '$baseUrl/repos/$owner/$repo';
     final res = await http.delete(Uri.parse(url), headers: _headers);
-    
-    if (res.statusCode != 204) { // GitHub API merespon 204 No Content untuk sukes delete repo
-      final errorData = jsonDecode(res.body);
-      String errMsg = errorData['message'] ?? 'Failed to delete repository';
-      // Tambahkan info jika token kekurangan permissions
-      if (res.statusCode == 403 || res.statusCode == 404) {
-        errMsg += ' (Make sure your token has "delete_repo" scope)';
-      }
-      throw Exception(errMsg);
-    }
+    if (res.statusCode != 204) throw Exception('Failed to delete repository');
   }
 }
